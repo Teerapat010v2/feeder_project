@@ -3,80 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Fish Feeder Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Fish Feeder Dashboard</title>
+    <link rel="stylesheet" href="web/style.css">
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 class="text-2xl font-bold text-center text-blue-600 mb-6">🐟 ตู้ให้อาหารปลาอัจฉริยะ</h1>
-        
-        <div class="space-y-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Device ID</label>
-                <input type="text" id="deviceId" value="device123" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
-            </div>
+<body>
+    <div class="container">
+        <h1>🐟 Fish Feeder Dashboard</h1>
 
-            <div>
-                <label class="block text-sm font-medium text-gray-700">ปริมาณอาหาร (กรัม)</label>
-                <input type="number" id="amount" value="10" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border">
-            </div>
+        <!-- 🔘 ปุ่มเลือกโหมด -->
+        <div class="mode-selector">
+            <button id="btn-cloud" class="btn-mode active" onclick="setControlMode('cloud')">☁️ Cloud Mode</button>
+            <button id="btn-local" class="btn-mode" onclick="setControlMode('local')">🏠 Local Mode</button>
+        </div>
 
-            <button onclick="sendFeed()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
-                🍖 สั่งให้อาหารทันที
-            </button>
+        <!-- 🌐 ช่องกรอก IP สำหรับ Local Mode (ซ่อนไว้ก่อน) -->
+        <div id="local-ip-group" class="input-group" style="display: none;">
+            <label for="esp-ip">IP Address ของบอร์ด ESP8266:</label>
+            <input type="text" id="esp-ip" placeholder="เช่น 192.168.1.150" value="192.168.1.150">
+        </div>
 
-            <button onclick="sendStop()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition duration-200">
-                🛑 หยุดฉุกเฉิน (Emergency Stop)
-            </button>
-
-            <div id="result" class="mt-4 p-3 rounded-lg text-center font-medium hidden"></div>
+        <!-- 🐟 ปุ่มสั่งให้อาหาร -->
+        <div class="action-section">
+            <button id="btn-feed" onclick="handleFeed(10)">🐟 สั่งให้อาหาร (10 กรัม)</button>
         </div>
     </div>
 
-    <script>
-        const API_BASE_URL = 'https://feederproject.vercel.app'; // URL Backend ของคุณ
-
-        async function sendFeed() {
-            const deviceId = document.getElementById('deviceId').value;
-            const amountGrams = parseInt(document.getElementById('amount').value);
-            showResult('กำลังส่งคำสั่ง...', 'bg-yellow-100 text-yellow-800');
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/feed`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ deviceId, amountGrams })
-                });
-                const data = await res.json();
-                showResult(data.message || 'ส่งคำสั่งสำเร็จ!', 'bg-green-100 text-green-800');
-            } catch (err) {
-                showResult('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'bg-red-100 text-red-800');
-            }
-        }
-
-        async function sendStop() {
-            const deviceId = document.getElementById('deviceId').value;
-            showResult('กำลังส่งคำสั่งหยุดฉุกเฉิน...', 'bg-yellow-100 text-yellow-800');
-
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/stop`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ deviceId })
-                });
-                const data = await res.json();
-                showResult(data.message || 'ส่งคำสั่งหยุดสำเร็จ!', 'bg-red-100 text-red-800');
-            } catch (err) {
-                showResult('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'bg-red-100 text-red-800');
-            }
-        }
-
-        function showResult(msg, colorClass) {
-            const el = document.getElementById('result');
-            el.className = `mt-4 p-3 rounded-lg text-center font-medium ${colorClass}`;
-            el.innerText = msg;
-            el.classList.remove('hidden');
-        }
-    </script>
+    <script src="web/app.js"></script>
 </body>
 </html>

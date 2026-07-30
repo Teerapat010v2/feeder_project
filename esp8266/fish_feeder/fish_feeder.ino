@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
+#include <WiFiManager.h>
 #include "HX711.h"
 #include "secrets.h"
 
@@ -15,7 +16,6 @@
 #define SCL_PIN   D3
 
 // --- ⚙️ Calibration Values ---
-// ค่า calibration factor ของโหลดเซลล์ (ต้องปรับให้ตรงกับแผ่นโหลดเซลล์จริงของคุณ)
 #define CALIBRATION_FACTOR 220.4
 
 // --- Objects ---
@@ -29,15 +29,20 @@ String subStopTopic   = "fishfeeder/" + String(DEVICE_ID) + "/cmd/stop";
 String pubStatusTopic = "fishfeeder/" + String(DEVICE_ID) + "/status";
 String pubWeightTopic = "fishfeeder/" + String(DEVICE_ID) + "/weight";
 
-// Timers
+// Timers & State Variables
 unsigned long lastWeightReport = 0;
-const long reportInterval = 5000; // ส่งค่าน้ำหนักทุกๆ 5 วินาที
+const long reportInterval = 5000;
+
+bool isFeeding = false;
+unsigned long feedStartTime = 0;
+unsigned long feedDuration = 0;
 
 // Function Declarations
 void setupWiFi();
 void reconnectMQTT();
 void callback(char* topic, byte* payload, unsigned int length);
 void triggerFeeding(int amountGrams);
+void stopFeeding();
 void emergencyStop();
 void publishStatus(String state, String msg);
 void publishWeight();
@@ -45,23 +50,21 @@ void publishWeight();
 void setup() {
   Serial.begin(115200);
 
-  // Pin Modes setup
+  // Pin Modes setup (สำหรับ Active LOW Relay)
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW); // ปิด Relay ไว้ตั้งต้น
-  digitalWrite(LED_PIN, HIGH);  // ไฟ LED ของ ESP8266 ดับตั้งต้น (Active LOW)
+  digitalWrite(RELAY_PIN, HIGH); // HIGH = ปิด Relay
+  digitalWrite(LED_PIN, HIGH);   // HIGH = ดับ LED
 
-  // I2C Setup (สำหรับต่อจอ OLED หรือ RTC)
   Wire.begin(SDA_PIN, SCL_PIN);
 
-  // HX711 Setup
   scale.begin(HX711_DT, HX711_SCK);
   scale.set_scale(CALIBRATION_FACTOR);
-  scale.tare(); // เซ็ตน้ำหนักเริ่มต้นเป็น 0 (Set Tare)
+  scale.tare();
 
+  // ระบบเชื่อมต่อ Wi-Fi และ Redirect ไป Vercel Dashboard
   setupWiFi();
 
-  // SSL/TLS Config
   espClient.setInsecure();
   client.setServer(MQTT_HOST, MQTT_PORT);
   client.setCallback(callback);
@@ -73,8 +76,18 @@ void loop() {
   }
   client.loop();
 
-  // อ่านและส่งค่าน้ำหนักเข้า MQTT/Firebase ตามช่วงเวลา
   unsigned long currentMillis = millis();
+
+  // ตรวจสอบเวลาให้อาหาร (Non-blocking)
+  if (isFeeding) {
+    if (currentMillis - feedStartTime >= feedDuration) {
+      stopFeeding();
+      publishStatus("IDLE", "Feeding complete");
+      publishWeight();
+    }
+  }
+
+  // ส่งค่าน้ำหนักทุกช่วงเวลา
   if (currentMillis - lastWeightReport >= reportInterval) {
     lastWeightReport = currentMillis;
     publishWeight();
@@ -82,25 +95,32 @@ void loop() {
 }
 
 // ----------------------------------------------------
-// 📶 การเชื่อมต่อ Wi-Fi
+// 📶 เชื่อมต่อ Wi-Fi และ Redirect ไป Vercel Dashboard
 // ----------------------------------------------------
 void setupWiFi() {
-  delay(10);
-  Serial.print("Connecting to Wi-Fi: ");
-  Serial.println(WIFI_SSID);
+  WiFiManager wm;
+  String dashboardUrl = "https://feederproject.vercel.app/"; 
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  // เมื่อผู้ใช้กด Save Wi-Fi สำเร็จ ให้เด้งไปหน้า Vercel Dashboard ทันที
+  String customHead = "<script>"
+                      "if (window.location.pathname === '/wifisave') {"
+                      "  setTimeout(function(){ window.location.href = '" + dashboardUrl + "'; }, 2000);"
+                      "}"
+                      "</script>";
+  wm.setCustomHeadElement(customHead.c_str());
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    // สลับไฟ LED เพื่อแสดงการกำลังเชื่อมต่อ
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); 
+  // 🚨 ปลดคอมเมนต์บรรทัดล่าง หากต้องการล้างค่า Wi-Fi เก่าออกเพื่อทดสอบ
+  // wm.resetSettings();
+
+  bool res = wm.autoConnect("FishFeeder-Setup");
+
+  if (!res) {
+    Serial.println("Failed to connect or hit timeout");
+    ESP.restart();
+  } else {
+    Serial.println("\nWiFi connected successfully!");
+    digitalWrite(LED_PIN, LOW); // ไฟติดเมื่อต่อ Wi-Fi บ้านสำเร็จ
   }
-
-  Serial.println("\nWiFi connected!");
-  digitalWrite(LED_PIN, LOW); // ติดสว่างเมื่อเชื่อมต่อสำเร็จ (Active LOW)
 }
 
 // ----------------------------------------------------
@@ -113,10 +133,8 @@ void reconnectMQTT() {
 
     if (client.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
       Serial.println("CONNECTED!");
-
       client.subscribe(subFeedTopic.c_str());
       client.subscribe(subStopTopic.c_str());
-
       publishStatus("ONLINE", "Device connected & scale ready");
     } else {
       Serial.print("failed, rc=");
@@ -147,46 +165,39 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 // ----------------------------------------------------
-// ⚙️ กลไกการให้อาหารผ่าน Relay
+// ⚙️ กลไกการสั่งให้อาหาร & หยุด
 // ----------------------------------------------------
 void triggerFeeding(int amountGrams) {
   Serial.printf("Feeding action started! Target: %d grams\n", amountGrams);
   publishStatus("FEEDING", "Relay ON - Dispensing food...");
 
-  // เปิด Relay เพื่อให้มอเตอร์/วาล์วทำงาน
-  digitalWrite(RELAY_PIN, HIGH);
+  int duration = (amountGrams / 10) * 2000;
+  if (duration < 1000) duration = 1000;
+
+  feedDuration = duration;
+  feedStartTime = millis();
+  isFeeding = true;
+
+  digitalWrite(RELAY_PIN, LOW); // Active LOW -> สั่ง LOW เพื่อเปิด
   digitalWrite(LED_PIN, LOW);
-
-  // คำนวณเวลารัน Relay เบื้องต้น (ตัวอย่าง: 10 กรัม = เปิด 2 วินาที)
-  int runDuration = (amountGrams / 10) * 2000;
-  if (runDuration < 1000) runDuration = 1000;
-
-  delay(runDuration);
-
-  // ปิด Relay เมื่อครบกำหนดเวลา
-  digitalWrite(RELAY_PIN, LOW);
-  digitalWrite(LED_PIN, HIGH);
-
-  publishStatus("IDLE", "Feeding complete");
-  publishWeight(); // ส่งค่าน้ำหนักล่าสุดทันทีหลังให้อาหาร
 }
 
-// ----------------------------------------------------
-// 🛑 หยุดฉุกเฉิน
-// ----------------------------------------------------
-void emergencyStop() {
-  digitalWrite(RELAY_PIN, LOW); // ตัดไฟ Relay ทันที
+void stopFeeding() {
+  isFeeding = false;
+  digitalWrite(RELAY_PIN, HIGH); // Active LOW -> สั่ง HIGH เพื่อปิด
   digitalWrite(LED_PIN, HIGH);
+}
+
+void emergencyStop() {
+  stopFeeding();
+  Serial.println("EMERGENCY STOP TRIGGERED!");
   publishStatus("STOPPED", "Emergency stop executed");
 }
 
-// ----------------------------------------------------
-// ⚖️ อ่านน้ำหนักจาก HX711 และส่งค่าขึ้น MQTT
-// ----------------------------------------------------
 void publishWeight() {
   if (scale.is_ready()) {
-    float weight = scale.get_units(5); // อ่านค่าเฉลี่ย 5 ครั้ง
-    if (weight < 0) weight = 0.0;     // กันค่าติดลบชั่วคราว
+    float weight = scale.get_units(5);
+    if (weight < 0) weight = 0.0;
 
     StaticJsonDocument<128> doc;
     doc["weight_grams"] = weight;
@@ -200,9 +211,6 @@ void publishWeight() {
   }
 }
 
-// ----------------------------------------------------
-// 📤 ส่งสถานะกลับเข้า System
-// ----------------------------------------------------
 void publishStatus(String state, String msg) {
   StaticJsonDocument<128> doc;
   doc["state"] = state;

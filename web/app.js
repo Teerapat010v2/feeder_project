@@ -35,12 +35,50 @@ const authDeviceCode = document.getElementById("authDeviceCode");
 const authError = document.getElementById("authError");
 const logoutBtn = document.getElementById("logoutBtn");
 
+// ---------- Dual Mode DOM ----------
+const btnCloud = document.getElementById("btn-cloud") || document.getElementById("btnCloud");
+const btnLocal = document.getElementById("btn-local") || document.getElementById("btnLocal");
+const localIpGroup = document.getElementById("local-ip-group") || document.getElementById("localIpGroup");
+const espIpInput = document.getElementById("esp-ip") || document.getElementById("espIp");
+
 // =====================================
-// DEVICE AUTH (ไม่มีระบบ Login/User จริง
-// เก็บแค่ "ไอดีเครื่อง" + "รหัส" ไว้ใน localStorage ของเบราว์เซอร์)
+// DUAL MODE & LOCAL STORAGE SETTINGS
 // =====================================
 
 const AUTH_KEY = "fishfeeder_auth";
+const MODE_KEY = "fishfeeder_mode";
+const LOCAL_IP_KEY = "fishfeeder_local_ip";
+
+let currentMode = localStorage.getItem(MODE_KEY) || "cloud";
+
+function setControlMode(mode) {
+    currentMode = mode;
+    localStorage.setItem(MODE_KEY, mode);
+
+    if (btnCloud && btnLocal) {
+        if (mode === "cloud") {
+            btnCloud.classList.add("active");
+            btnLocal.classList.remove("active");
+            if (localIpGroup) localIpGroup.style.display = "none";
+        } else {
+            btnLocal.classList.add("active");
+            btnCloud.classList.remove("active");
+            if (localIpGroup) localIpGroup.style.display = "block";
+        }
+    }
+}
+
+// โหลดค่า IP เดิมที่เคยกรอกไว้
+if (espIpInput) {
+    espIpInput.value = localStorage.getItem(LOCAL_IP_KEY) || "192.168.1.150";
+    espIpInput.addEventListener("change", () => {
+        localStorage.setItem(LOCAL_IP_KEY, espIpInput.value.trim());
+    });
+}
+
+// =====================================
+// DEVICE AUTH
+// =====================================
 
 function getAuth() {
     try {
@@ -78,8 +116,6 @@ function hideAuthModal() {
 
 // =====================================
 // XSS PROTECTION
-// เดิม renderHistory/renderAlerts ใส่ค่าจาก MQTT/Firestore ลง innerHTML ตรง ๆ
-// ถ้ามีใครยิงข้อความปลอมผ่าน MQTT (เช่น broker credential หลุด) จะแทรก script ได้
 // =====================================
 
 function escapeHtml(str) {
@@ -94,12 +130,9 @@ function escapeHtml(str) {
 
 // =====================================
 // FOOD STATUS (fallback ฝั่ง client)
-// ค่าที่ถูกต้องควรมาจาก server (data.foodStatus) เสมอ
-// ฟังก์ชันนี้ใช้เป็น fallback เท่านั้นกรณี server เก่ายังไม่ส่ง foodStatus มา
 // =====================================
 
 function calculateFoodStatus(weightRemaining, dailyUsageValue) {
-
     if (dailyUsageValue <= 0) {
         return {
             level: "green",
@@ -135,15 +168,13 @@ function calculateFoodStatus(weightRemaining, dailyUsageValue) {
         daysRemaining: Number(daysRemaining.toFixed(1)),
         weightRemaining
     };
-
 }
 
 // =====================================
-// API
+// API CALLS
 // =====================================
 
 async function getJSON(url) {
-
     const res = await fetch(url, {
         headers: { ...authHeaders() }
     });
@@ -155,22 +186,16 @@ async function getJSON(url) {
     }
 
     return await res.json();
-
 }
 
 async function postJSON(url, data = {}) {
-
     const res = await fetch(url, {
-
         method: "POST",
-
         headers: {
             "Content-Type": "application/json",
             ...authHeaders()
         },
-
         body: JSON.stringify(data)
-
     });
 
     if (res.status === 401) {
@@ -180,17 +205,12 @@ async function postJSON(url, data = {}) {
     }
 
     return await res.json();
-
 }
 
 async function deleteAPI(url) {
-
     const res = await fetch(url, {
-
         method: "DELETE",
-
         headers: { ...authHeaders() }
-
     });
 
     if (res.status === 401) {
@@ -200,78 +220,45 @@ async function deleteAPI(url) {
     }
 
     return await res.json();
-
 }
 
 // =====================================
-// LOAD STATUS
+// LOADERS
 // =====================================
 
 async function loadStatus() {
-
     const data = await getJSON("/api/status");
-
     updateStatus(data);
-
 }
-
-// =====================================
-// LOAD HISTORY
-// =====================================
 
 async function loadHistory() {
-
     const history = await getJSON("/api/history");
-
     renderHistory(history);
-
 }
-
-// =====================================
-// LOAD ALERTS
-// =====================================
 
 async function loadAlerts() {
-
     const alerts = await getJSON("/api/alerts");
-
     renderAlerts(alerts);
-
 }
-
-// =====================================
-// LOAD SCHEDULE
-// =====================================
 
 async function loadSchedule() {
-
     const schedules = await getJSON("/api/schedule");
-
     renderSchedule(schedules);
-
 }
 
 // =====================================
-// STATUS
+// STATUS & PROGRESS
 // =====================================
 
 function updateStatus(data) {
-
     if (data.online) {
-
         statusText.innerHTML = "ONLINE";
         statusText.className = "online";
-
     } else {
-
         statusText.innerHTML = "OFFLINE";
         statusText.className = "offline";
-
     }
 
-    // เดิม: ช่อง dailyUsage มีค่า default "100" ติดมาตั้งแต่ HTML เสมอ
-    // ทำให้ Number(dailyUsage.value || data.dailyUsage || 100) ไม่เคยไปอ่านค่าจริงจาก server เลย
-    // แก้ไข: sync ค่าจาก server เข้าช่อง input ทุกครั้งที่ได้ status ใหม่ (ถ้า user ยังไม่ได้พิมพ์เอง)
     if (data.dailyUsage && document.activeElement !== dailyUsage) {
         dailyUsage.value = data.dailyUsage;
     }
@@ -279,8 +266,6 @@ function updateStatus(data) {
     const currentWeight = data.weight || 0;
     const dailyUsageValue = Number(dailyUsage.value || data.dailyUsage || 100);
 
-    // ใช้ foodStatus ที่ server คำนวณมาให้ก่อนเสมอ (ตรงกับที่ backend ใช้ตัดสินใจแจ้งเตือนจริง)
-    // ถ้า server เก่ายังไม่ส่งมา ค่อย fallback มาคำนวณฝั่ง client
     const foodStatus = data.foodStatus || calculateFoodStatus(currentWeight, dailyUsageValue);
 
     weight.innerHTML = currentWeight;
@@ -288,80 +273,44 @@ function updateStatus(data) {
     foodStatusLabel.className = `fw-bold text-${foodStatus.level === 'green' ? 'success' : foodStatus.level === 'yellow' ? 'warning' : 'danger'}`;
     daysRemainingText.innerHTML = foodStatus.daysRemaining === Infinity ? "∞ วัน" : `${foodStatus.daysRemaining} วัน`;
 
-    // แสดงเวลาที่ Backend ส่งมา
     if (data.lastSeen) {
-
         if (data.lastSeen._seconds) {
-
-            // Firestore Timestamp
-            lastSeen.innerHTML = new Date(
-                data.lastSeen._seconds * 1000
-            ).toLocaleString();
-
+            lastSeen.innerHTML = new Date(data.lastSeen._seconds * 1000).toLocaleString();
         } else {
-
-            // ISO String หรือ Date
-            lastSeen.innerHTML = new Date(
-                data.lastSeen
-            ).toLocaleString();
-
+            lastSeen.innerHTML = new Date(data.lastSeen).toLocaleString();
         }
-
     } else {
-
         lastSeen.innerHTML = "-";
-
     }
 
     updateProgress(currentWeight);
-
 }
 
-// =====================================
-// PROGRESS BAR
-// =====================================
-
 function updateProgress(current) {
-
     const max = 3000;
-
     let percent = (current / max) * 100;
 
     if (percent > 100) percent = 100;
 
     foodBar.style.width = percent + "%";
-
     foodBar.innerHTML = Math.round(percent) + "%";
 
     if (percent > 60) {
-
         foodBar.className = "progress-bar bg-success";
-
-    }
-
-    else if (percent > 30) {
-
+    } else if (percent > 30) {
         foodBar.className = "progress-bar bg-warning";
-
-    }
-
-    else {
-
+    } else {
         foodBar.className = "progress-bar bg-danger";
-
     }
-
 }
+
 // =====================================
-// RENDER HISTORY
+// RENDERERS
 // =====================================
 
 function renderHistory(history) {
-
     historyTable.innerHTML = "";
-
     history.forEach(item => {
-
         const tr = document.createElement("tr");
 
         const date = item.timestamp
@@ -372,7 +321,6 @@ function renderHistory(history) {
               ).toLocaleString()
             : "-";
 
-        // เดิมใส่ item.amount / item.mode ตรง ๆ ผ่าน innerHTML -> เสี่ยง XSS ถ้าค่ามาจาก MQTT ที่ปลอมได้
         tr.innerHTML = `
             <td>${escapeHtml(date)}</td>
             <td>${escapeHtml(item.amount)} g</td>
@@ -380,54 +328,31 @@ function renderHistory(history) {
         `;
 
         historyTable.appendChild(tr);
-
     });
-
 }
 
-// =====================================
-// RENDER ALERTS
-// =====================================
-
 function renderAlerts(alerts) {
-
     alertList.innerHTML = "";
-
     alerts.forEach(alert => {
-
         const li = document.createElement("li");
-
         li.className = "list-group-item";
-
         li.innerHTML = `
             <strong>${escapeHtml((alert.level || "").toUpperCase())}</strong><br>
             ${escapeHtml(alert.message)}
         `;
-
         alertList.appendChild(li);
-
     });
-
 }
-
-// =====================================
-// RENDER SCHEDULE
-// =====================================
 
 let schedules = [];
 
 function renderSchedule(data) {
-
     schedules = data;
-
     scheduleList.innerHTML = "";
 
     data.forEach(item => {
-
         const li = document.createElement("li");
-
-        li.className =
-            "list-group-item d-flex justify-content-between align-items-center";
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
 
         const timeSpan = document.createElement("span");
         timeSpan.textContent = item.time;
@@ -441,41 +366,22 @@ function renderSchedule(data) {
         li.appendChild(btn);
 
         scheduleList.appendChild(li);
-
     });
-
 }
-
-// =====================================
-// REMOVE SCHEDULE
-// =====================================
 
 function removeSchedule(id) {
-
     schedules = schedules.filter(item => item.id !== id);
-
     saveSchedule();
-
 }
 
-// =====================================
-// SAVE SCHEDULE
-// =====================================
-
 async function saveSchedule() {
-
     const payload = schedules.map(item => ({
-
         time: item.time,
-
         enable: true
-
     }));
 
     const result = await postJSON("/api/schedule", {
-
         schedules: payload
-
     });
 
     if (result && result.success === false) {
@@ -483,18 +389,19 @@ async function saveSchedule() {
     }
 
     loadSchedule();
-
 }
 
 // =====================================
-// APP INIT (หลังจากยืนยันไอดีเครื่อง+รหัสแล้วเท่านั้น)
+// APP INIT
 // =====================================
 
 let socket = null;
 
 function startApp(auth) {
+    // ตั้งค่า Mode ล่าสุดตาม Storage
+    setControlMode(currentMode);
 
-    // ส่ง deviceId/deviceCode ตอน connect เพื่อให้ server ตรวจสอบใน io.use()
+    // Socket.io Connection
     socket = io({
         auth: {
             deviceId: auth.deviceId,
@@ -512,52 +419,31 @@ function startApp(auth) {
         showAuthModal("ไอดีเครื่องหรือรหัสไม่ถูกต้อง กรุณากรอกใหม่");
     });
 
-    socket.on("status", (data) => {
-        updateStatus(data);
-    });
+    socket.on("status", (data) => updateStatus(data));
+    socket.on("weight", (data) => updateStatus({ online: true, weight: data.weight }));
+    socket.on("history", (data) => renderHistory(data));
+    socket.on("alerts", (data) => renderAlerts(data));
+    socket.on("alert", () => loadAlerts());
+    socket.on("schedule", (data) => renderSchedule(data));
 
-    socket.on("weight", (data) => {
-        updateStatus({
-            online: true,
-            weight: data.weight
-        });
-    });
+    // ---------- Event Listeners ----------
 
-    socket.on("history", (data) => {
-        renderHistory(data);
-    });
-
-    socket.on("alerts", (data) => {
-        renderAlerts(data);
-    });
-
-    socket.on("alert", () => {
-        loadAlerts();
-    });
-
-    socket.on("schedule", (data) => {
-        renderSchedule(data);
-    });
-
-    // ---------- Button Events ----------
+    // ปุ่มเลือกโหมด (ถ้ามีปุ่มใน HTML)
+    if (btnCloud) btnCloud.addEventListener("click", () => setControlMode("cloud"));
+    if (btnLocal) btnLocal.addEventListener("click", () => setControlMode("local"));
 
     saveUsageBtn.addEventListener("click", async () => {
-
         const usage = Number(dailyUsage.value);
-
         if (usage <= 0) {
             alert("Daily usage must be greater than 0");
             return;
         }
-
         await postJSON("/api/usage", { dailyUsage: usage });
-
         alert("Daily usage updated");
-
     });
 
+    // 🐟 สั่งให้อาหาร (รองรับ Dual Mode)
     feedBtn.addEventListener("click", async () => {
-
         const grams = Number(feedAmount.value);
 
         if (grams <= 0) {
@@ -565,20 +451,81 @@ function startApp(auth) {
             return;
         }
 
-        const result = await postJSON("/api/feed", { grams });
+        const originalText = feedBtn.textContent;
+        feedBtn.disabled = true;
+        feedBtn.textContent = "⏳ กำลังส่งคำสั่ง...";
 
-        if (result && result.success === false) {
-            alert(result.message);
+        try {
+            if (currentMode === "cloud") {
+                // ☁️ Cloud Mode: ยิงผ่าน Vercel Backend API
+                const result = await postJSON("/api/feed", { grams });
+                if (result && result.success === false) {
+                    alert(result.message);
+                } else {
+                    alert("✅ [Cloud Mode] ส่งคำสั่งให้อาหารเรียบร้อย!");
+                }
+            } else {
+                // 🏠 Local Mode: ยิงตรงไปหา IP ของ ESP8266 ในวง LAN
+                const espIp = espIpInput ? espIpInput.value.trim() : "";
+                if (!espIp) {
+                    alert("กรุณากรอก IP Address ของ ESP8266");
+                    return;
+                }
+
+                localStorage.setItem(LOCAL_IP_KEY, espIp);
+
+                // ตั้งเวลา Timeout 5 วินาทีหากติดต่อไม่ได้
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                const response = await fetch(`http://${espIp}/local-feed?amount=${grams}`, {
+                    method: "GET",
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    alert("✅ [Local Mode] สั่งให้อาหารโดยตรงสำเร็จ!");
+                } else {
+                    alert("❌ [Local Mode] บอร์ดตอบกลับข้อผิดพลาด");
+                }
+            }
+        } catch (err) {
+            console.error("Feed Action Error:", err);
+            if (currentMode === "local") {
+                alert("❌ [Local Mode] ติดต่อบอร์ดไม่ได้! ตรวจสอบว่ามือถือและบอร์ดอยู่ใน Wi-Fi เดียวกันหรือไม่");
+            } else {
+                alert("❌ เกิดข้อผิดพลาดในการเชื่อมต่อ Cloud API");
+            }
+        } finally {
+            feedBtn.disabled = false;
+            feedBtn.textContent = originalText;
         }
-
     });
 
+    // 🛑 หยุดฉุกเฉิน (รองรับ Dual Mode)
     stopBtn.addEventListener("click", async () => {
-        await postJSON("/api/stop");
+        try {
+            if (currentMode === "cloud") {
+                await postJSON("/api/stop");
+                alert("🛑 [Cloud Mode] ส่งคำสั่งหยุดฉุกเฉินแล้ว");
+            } else {
+                const espIp = espIpInput ? espIpInput.value.trim() : "";
+                if (!espIp) {
+                    alert("กรุณากรอก IP Address ของ ESP8266");
+                    return;
+                }
+                await fetch(`http://${espIp}/local-stop`, { method: "GET" });
+                alert("🛑 [Local Mode] ส่งคำสั่งหยุดฉุกเฉินแล้ว");
+            }
+        } catch (err) {
+            console.error("Stop Action Error:", err);
+            alert("❌ เกิดข้อผิดพลาดในการส่งคำสั่งหยุด");
+        }
     });
 
     addSchedule.addEventListener("click", () => {
-
         if (scheduleTime.value === "") {
             alert("Please select time");
             return;
@@ -590,18 +537,14 @@ function startApp(auth) {
         });
 
         saveSchedule();
-
         scheduleTime.value = "";
-
     });
 
     clearHistory.addEventListener("click", async () => {
-
         if (confirm("Clear feeding history?")) {
             await deleteAPI("/api/history");
             loadHistory();
         }
-
     });
 
     // ---------- Initial Load ----------
@@ -614,7 +557,6 @@ function startApp(auth) {
     }
 
     init();
-
 }
 
 // =====================================
@@ -622,7 +564,6 @@ function startApp(auth) {
 // =====================================
 
 authForm.addEventListener("submit", async (e) => {
-
     e.preventDefault();
 
     const deviceId = authDeviceId.value.trim();
@@ -634,7 +575,6 @@ authForm.addEventListener("submit", async (e) => {
     }
 
     try {
-
         const res = await fetch("/api/verify", {
             method: "POST",
             headers: {
@@ -652,11 +592,9 @@ authForm.addEventListener("submit", async (e) => {
         } else {
             authError.textContent = "ไอดีเครื่องหรือรหัสไม่ถูกต้อง";
         }
-
     } catch (err) {
         authError.textContent = "เชื่อมต่อ server ไม่ได้ ลองใหม่อีกครั้ง";
     }
-
 });
 
 if (logoutBtn) {

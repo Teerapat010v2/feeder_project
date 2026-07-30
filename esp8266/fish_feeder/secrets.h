@@ -3,8 +3,8 @@
 #define SECRETS_H
 
 // --- Wi-Fi Configuration ---
-#define WIFI_SSID "NFC"        // ชื่อ Wi-Fi ของคุณ
-#define WIFI_PASS "11111111"    // รหัสผ่าน Wi-Fi
+#define WIFI_SSID "PSARSOMSAK_2.4G"        // ชื่อ Wi-Fi ของคุณ
+#define WIFI_PASS "Seal9727"   // รหัสผ่าน Wi-Fi
 
 // --- Device Configuration ---
 #define DEVICE_ID "device123"             // ตั้ง Device ID ของเครื่องนี้
