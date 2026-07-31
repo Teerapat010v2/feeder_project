@@ -96,8 +96,7 @@ function clearAuthStorage() {
 }
 
 function authHeaders() {
-    const auth = getAuth();
-    if (!auth) return {};
+    const auth = getAuth() || { deviceId: "DEV01", deviceCode: "1234" }; // ใส่ค่า Default สำรองไว้กรณีไม่ได้ล็อกอิน
     return {
         "x-device-id": auth.deviceId,
         "x-device-code": auth.deviceCode
@@ -492,10 +491,11 @@ feedBtn?.addEventListener("click", async () => {
 
         try {
             if (currentMode === "cloud") {
-                // ☁️ Cloud Mode: ยิงผ่าน Vercel Backend API
+                // ตรงส่วน feedBtn.addEventListener -> Cloud Mode
                 const result = await postJSON("/api/feed", { 
-                    amount: grams,  // ส่งเผื่อ Backend รอรับชื่อ amount
-                    grams: grams    // ส่งเผื่อ Backend รอรับชื่อ grams
+                    amount: grams,
+                    grams: grams,
+                    deviceId: "DEV01"
                 });
                 if (result && result.success === false) {
                     alert(result.message);
