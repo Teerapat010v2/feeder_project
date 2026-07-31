@@ -491,11 +491,14 @@ feedBtn?.addEventListener("click", async () => {
 
         try {
             if (currentMode === "cloud") {
-                // ตรงส่วน feedBtn.addEventListener -> Cloud Mode
-                const result = await postJSON("/api/feed", { 
-                    amount: grams,
-                    grams: grams,
-                    deviceId: "DEV01"
+                // ในไฟล์ web/app.js ตอนยิง API ไปที่ Vercel
+                const response = await fetch('/api/feed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        deviceId: "device123", // ⚠️ ต้องเป็น "device123" ตรงตาม secrets.h
+                        amountGrams: 10
+                    })
                 });
                 if (result && result.success === false) {
                     alert(result.message);
