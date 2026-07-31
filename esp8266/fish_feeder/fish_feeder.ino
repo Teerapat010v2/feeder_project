@@ -66,8 +66,10 @@ void setup() {
   setupWiFi();
 
   espClient.setInsecure();
+  espClient.setBufferSizes(512, 512);
   client.setServer(MQTT_HOST, MQTT_PORT);
   client.setCallback(callback);
+  client.setBufferSize(512); // 🟢 ขยาย Buffer ของ PubSubClient ให้รองรับ JSON
 }
 
 void loop() {
