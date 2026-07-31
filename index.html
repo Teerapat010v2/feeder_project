@@ -13,19 +13,26 @@
 
         <!-- 🔘 ปุ่มเลือกโหมด -->
         <div class="mode-selector">
-            <button id="btn-cloud" class="btn-mode active" onclick="setControlMode('cloud')">☁️ Cloud Mode</button>
-            <button id="btn-local" class="btn-mode" onclick="setControlMode('local')">🏠 Local Mode</button>
+            <button id="btn-cloud" class="btn-mode active">☁️ Cloud Mode</button>
+            <button id="btn-local" class="btn-mode">🏠 Local Mode</button>
         </div>
 
-        <!-- 🌐 ช่องกรอก IP สำหรับ Local Mode (ซ่อนไว้ก่อน) -->
+        <!-- 🌐 ช่องกรอก IP สำหรับ Local Mode -->
         <div id="local-ip-group" class="input-group" style="display: none;">
             <label for="esp-ip">IP Address ของบอร์ด ESP8266:</label>
             <input type="text" id="esp-ip" placeholder="เช่น 192.168.1.150" value="192.168.1.150">
         </div>
 
-        <!-- 🐟 ปุ่มสั่งให้อาหาร -->
-        <div class="action-section">
+        <!-- ⚖️ ช่องกรอกปริมาณอาหาร -->
+        <div class="input-group" style="margin-top: 15px;">
+            <label for="feedAmount">ปริมาณอาหาร (กรัม):</label>
+            <input type="number" id="feedAmount" value="10" min="1" max="100">
+        </div>
+
+        <!-- 🐟 ปุ่มสั่งงาน -->
+        <div class="action-section" style="margin-top: 15px;">
             <button id="feedBtn">สั่งให้อาหาร</button>
+            <button id="stopBtn" style="background-color: #dc3545; color: white;">🛑 หยุดฉุกเฉิน</button>
         </div>
     </div>
 

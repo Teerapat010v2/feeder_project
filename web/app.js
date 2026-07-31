@@ -476,13 +476,15 @@ function startApp(auth) {
     });
 
     // 🐟 สั่งให้อาหาร (รองรับ Dual Mode)
-    feedBtn?.addEventListener("click", async () => {
-        const grams = Number(feedAmount?.value || 0);
+feedBtn?.addEventListener("click", async () => {
+    // กำหนดค่าเริ่มต้นเป็น 10 กรัม หากหาช่องกรอก feedAmount ไม่เจอ
+    const grams = Number(feedAmount?.value || 10);
 
-        if (grams <= 0) {
-            alert("Amount must be greater than 0");
-            return;
-        }
+    if (grams <= 0) {
+        alert("Amount must be greater than 0");
+        return;
+    }
+    // ... (โค้ดส่วนเดิมคงไว้)
 
         const originalText = feedBtn.textContent;
         feedBtn.disabled = true;
@@ -638,11 +640,14 @@ logoutBtn?.addEventListener("click", () => {
 
 // ---------- Bootstrap ----------
 
+// ---------- Bootstrap ----------
+
 const existingAuth = getAuth();
 
-if (existingAuth) {
+// เพิ่มเงื่อนไข: หากไม่มี authModal ในหน้า HTML ให้เริ่มทำงาน startApp() ทันที
+if (existingAuth || !authModal) {
     hideAuthModal();
-    startApp(existingAuth);
+    startApp(existingAuth || { deviceId: "DEV01", deviceCode: "1234" });
 } else {
     showAuthModal();
 }
