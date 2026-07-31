@@ -474,16 +474,15 @@ function startApp(auth) {
         alert("Daily usage updated");
     });
 
-    // 🐟 สั่งให้อาหาร (รองรับ Dual Mode)
-feedBtn?.addEventListener("click", async () => {
-    // กำหนดค่าเริ่มต้นเป็น 10 กรัม หากหาช่องกรอก feedAmount ไม่เจอ
-    const grams = Number(feedAmount?.value || 10);
+   // 🐟 สั่งให้อาหาร (รองรับ Dual Mode)
+    feedBtn?.addEventListener("click", async () => {
+        // ดึงค่าจำนวนกรัมที่ผู้ใช้กรอก (ถ้าไม่ได้กรอกให้ใช้ 10)
+        const grams = Number(feedAmount?.value || 10);
 
-    if (grams <= 0) {
-        alert("Amount must be greater than 0");
-        return;
-    }
-    // ... (โค้ดส่วนเดิมคงไว้)
+        if (grams <= 0) {
+            alert("Amount must be greater than 0");
+            return;
+        }
 
         const originalText = feedBtn.textContent;
         feedBtn.disabled = true;
@@ -491,19 +490,16 @@ feedBtn?.addEventListener("click", async () => {
 
         try {
             if (currentMode === "cloud") {
-                // ในไฟล์ web/app.js ตอนยิง API ไปที่ Vercel
-                const response = await fetch('/api/feed', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        deviceId: "device123", // ⚠️ ต้องเป็น "device123" ตรงตาม secrets.h
-                        amountGrams: 10
-                    })
+                // 🟢 ใช้ postJSON แทน fetch เพื่อให้จัดการ Auth Header และ parse JSON ให้อัตโนมัติ
+                const result = await postJSON('/api/feed', {
+                    deviceId: "device123", // ตรงตาม secrets.h
+                    amountGrams: grams     // ใช้ค่า grams ตามที่ผู้ใช้ระบุ
                 });
-                if (result && result.success === false) {
-                    alert(result.message);
-                } else {
+
+                if (result && result.success) {
                     alert("✅ [Cloud Mode] ส่งคำสั่งให้อาหารเรียบร้อย!");
+                } else {
+                    alert("❌ เกิดข้อผิดพลาด: " + (result?.error || result?.message || "ส่งคำสั่งไม่สำเร็จ"));
                 }
             } else {
                 // 🏠 Local Mode: ยิงตรงไปหา IP ของ ESP8266 ในวง LAN
@@ -515,7 +511,6 @@ feedBtn?.addEventListener("click", async () => {
 
                 localStorage.setItem(LOCAL_IP_KEY, espIp);
 
-                // ตั้งเวลา Timeout 5 วินาทีหากติดต่อไม่ได้
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -549,8 +544,14 @@ feedBtn?.addEventListener("click", async () => {
     stopBtn?.addEventListener("click", async () => {
         try {
             if (currentMode === "cloud") {
-                await postJSON("/api/stop");
-                alert("🛑 [Cloud Mode] ส่งคำสั่งหยุดฉุกเฉินแล้ว");
+                // 🟢 ต้องส่ง deviceId ไปให้ Backend ด้วย
+                const result = await postJSON("/api/stop", { deviceId: "device123" });
+                
+                if (result && result.success) {
+                    alert("🛑 [Cloud Mode] ส่งคำสั่งหยุดฉุกเฉินแล้ว");
+                } else {
+                    alert("❌ หยุดฉุกเฉินไม่สำเร็จ: " + (result?.error || ""));
+                }
             } else {
                 const espIp = espIpInput ? espIpInput.value.trim() : "";
                 if (!espIp) {
