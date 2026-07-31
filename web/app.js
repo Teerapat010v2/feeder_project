@@ -17,7 +17,7 @@ const historyTable = document.getElementById("historyTable");
 const alertList = document.getElementById("alertList");
 const scheduleList = document.getElementById("scheduleList");
 
-const feedBtn = document.getElementById("feedBtn");
+const feedBtn = document.getElementById('feedBtn');
 const stopBtn = document.getElementById("stopBtn");
 
 const feedAmount = document.getElementById("feedAmount");
