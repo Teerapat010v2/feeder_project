@@ -493,7 +493,10 @@ feedBtn?.addEventListener("click", async () => {
         try {
             if (currentMode === "cloud") {
                 // ☁️ Cloud Mode: ยิงผ่าน Vercel Backend API
-                const result = await postJSON("/api/feed", { grams });
+                const result = await postJSON("/api/feed", { 
+                    amount: grams,  // ส่งเผื่อ Backend รอรับชื่อ amount
+                    grams: grams    // ส่งเผื่อ Backend รอรับชื่อ grams
+                });
                 if (result && result.success === false) {
                     alert(result.message);
                 } else {
