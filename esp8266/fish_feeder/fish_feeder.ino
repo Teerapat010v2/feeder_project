@@ -180,13 +180,13 @@ void triggerFeeding(int amountGrams) {
   feedStartTime = millis();
   isFeeding = true;
 
-  digitalWrite(RELAY_PIN, HIGH); // 🟢 ลองเปลี่ยนจาก LOW เป็น HIGH
+  digitalWrite(RELAY_PIN, LOW); // Active LOW -> สั่ง LOW เพื่อเปิด
   digitalWrite(LED_PIN, LOW);
 }
 
 void stopFeeding() {
   isFeeding = false;
-  digitalWrite(RELAY_PIN, LOW);  // 🟢 ลองเปลี่ยนจาก HIGH เป็น LOW
+  digitalWrite(RELAY_PIN, HIGH); // Active LOW -> สั่ง HIGH เพื่อปิด
   digitalWrite(LED_PIN, HIGH);
 }
 
