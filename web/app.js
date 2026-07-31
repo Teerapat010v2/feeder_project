@@ -1,9 +1,8 @@
 // =====================================
-// Fish Feeder IoT Dashboard
+// Fish Feeder IoT Dashboard (Fixed & Safe Version)
 // =====================================
 
-// ---------- DOM ----------
-
+// ---------- DOM Elements ----------
 const statusText = document.getElementById("statusText");
 const lastSeen = document.getElementById("lastSeen");
 
@@ -106,12 +105,12 @@ function authHeaders() {
 }
 
 function showAuthModal(message) {
-    authError.textContent = message || "";
-    authModal.style.display = "flex";
+    if (authError) authError.textContent = message || "";
+    if (authModal) authModal.style.display = "flex";
 }
 
 function hideAuthModal() {
-    authModal.style.display = "none";
+    if (authModal) authModal.style.display = "none";
 }
 
 // =====================================
@@ -129,7 +128,7 @@ function escapeHtml(str) {
 }
 
 // =====================================
-// FOOD STATUS (fallback ฝั่ง client)
+// FOOD STATUS
 // =====================================
 
 function calculateFoodStatus(weightRemaining, dailyUsageValue) {
@@ -227,23 +226,39 @@ async function deleteAPI(url) {
 // =====================================
 
 async function loadStatus() {
-    const data = await getJSON("/api/status");
-    updateStatus(data);
+    try {
+        const data = await getJSON("/api/status");
+        updateStatus(data);
+    } catch (e) {
+        console.warn("Could not load status:", e.message);
+    }
 }
 
 async function loadHistory() {
-    const history = await getJSON("/api/history");
-    renderHistory(history);
+    try {
+        const history = await getJSON("/api/history");
+        renderHistory(history);
+    } catch (e) {
+        console.warn("Could not load history:", e.message);
+    }
 }
 
 async function loadAlerts() {
-    const alerts = await getJSON("/api/alerts");
-    renderAlerts(alerts);
+    try {
+        const alerts = await getJSON("/api/alerts");
+        renderAlerts(alerts);
+    } catch (e) {
+        console.warn("Could not load alerts:", e.message);
+    }
 }
 
 async function loadSchedule() {
-    const schedules = await getJSON("/api/schedule");
-    renderSchedule(schedules);
+    try {
+        const schedules = await getJSON("/api/schedule");
+        renderSchedule(schedules);
+    } catch (e) {
+        console.warn("Could not load schedule:", e.message);
+    }
 }
 
 // =====================================
@@ -251,42 +266,52 @@ async function loadSchedule() {
 // =====================================
 
 function updateStatus(data) {
-    if (data.online) {
-        statusText.innerHTML = "ONLINE";
-        statusText.className = "online";
-    } else {
-        statusText.innerHTML = "OFFLINE";
-        statusText.className = "offline";
+    if (statusText) {
+        if (data.online) {
+            statusText.innerHTML = "ONLINE";
+            statusText.className = "online";
+        } else {
+            statusText.innerHTML = "OFFLINE";
+            statusText.className = "offline";
+        }
     }
 
-    if (data.dailyUsage && document.activeElement !== dailyUsage) {
+    if (dailyUsage && data.dailyUsage && document.activeElement !== dailyUsage) {
         dailyUsage.value = data.dailyUsage;
     }
 
     const currentWeight = data.weight || 0;
-    const dailyUsageValue = Number(dailyUsage.value || data.dailyUsage || 100);
+    const dailyUsageValue = Number(dailyUsage?.value || data.dailyUsage || 100);
 
     const foodStatus = data.foodStatus || calculateFoodStatus(currentWeight, dailyUsageValue);
 
-    weight.innerHTML = currentWeight;
-    foodStatusLabel.innerHTML = foodStatus.label;
-    foodStatusLabel.className = `fw-bold text-${foodStatus.level === 'green' ? 'success' : foodStatus.level === 'yellow' ? 'warning' : 'danger'}`;
-    daysRemainingText.innerHTML = foodStatus.daysRemaining === Infinity ? "∞ วัน" : `${foodStatus.daysRemaining} วัน`;
+    if (weight) weight.innerHTML = currentWeight;
+    if (foodStatusLabel) {
+        foodStatusLabel.innerHTML = foodStatus.label;
+        foodStatusLabel.className = `fw-bold text-${foodStatus.level === 'green' ? 'success' : foodStatus.level === 'yellow' ? 'warning' : 'danger'}`;
+    }
+    if (daysRemainingText) {
+        daysRemainingText.innerHTML = foodStatus.daysRemaining === Infinity ? "∞ วัน" : `${foodStatus.daysRemaining} วัน`;
+    }
 
-    if (data.lastSeen) {
-        if (data.lastSeen._seconds) {
-            lastSeen.innerHTML = new Date(data.lastSeen._seconds * 1000).toLocaleString();
+    if (lastSeen) {
+        if (data.lastSeen) {
+            if (data.lastSeen._seconds) {
+                lastSeen.innerHTML = new Date(data.lastSeen._seconds * 1000).toLocaleString();
+            } else {
+                lastSeen.innerHTML = new Date(data.lastSeen).toLocaleString();
+            }
         } else {
-            lastSeen.innerHTML = new Date(data.lastSeen).toLocaleString();
+            lastSeen.innerHTML = "-";
         }
-    } else {
-        lastSeen.innerHTML = "-";
     }
 
     updateProgress(currentWeight);
 }
 
 function updateProgress(current) {
+    if (!foodBar) return;
+
     const max = 3000;
     let percent = (current / max) * 100;
 
@@ -309,7 +334,10 @@ function updateProgress(current) {
 // =====================================
 
 function renderHistory(history) {
+    if (!historyTable) return;
     historyTable.innerHTML = "";
+    if (!Array.isArray(history)) return;
+
     history.forEach(item => {
         const tr = document.createElement("tr");
 
@@ -332,7 +360,10 @@ function renderHistory(history) {
 }
 
 function renderAlerts(alerts) {
+    if (!alertList) return;
     alertList.innerHTML = "";
+    if (!Array.isArray(alerts)) return;
+
     alerts.forEach(alert => {
         const li = document.createElement("li");
         li.className = "list-group-item";
@@ -347,10 +378,11 @@ function renderAlerts(alerts) {
 let schedules = [];
 
 function renderSchedule(data) {
-    schedules = data;
+    if (!scheduleList) return;
+    schedules = Array.isArray(data) ? data : [];
     scheduleList.innerHTML = "";
 
-    data.forEach(item => {
+    schedules.forEach(item => {
         const li = document.createElement("li");
         li.className = "list-group-item d-flex justify-content-between align-items-center";
 
@@ -402,38 +434,39 @@ function startApp(auth) {
     setControlMode(currentMode);
 
     // Socket.io Connection
-    socket = io({
-        auth: {
-            deviceId: auth.deviceId,
-            deviceCode: auth.deviceCode
-        }
-    });
+    if (typeof io !== "undefined") {
+        socket = io({
+            auth: {
+                deviceId: auth.deviceId,
+                deviceCode: auth.deviceCode
+            }
+        });
 
-    socket.on("connect", () => {
-        console.log("Socket Connected");
-    });
+        socket.on("connect", () => {
+            console.log("Socket Connected");
+        });
 
-    socket.on("connect_error", (err) => {
-        console.log("Socket connect_error:", err.message);
-        clearAuthStorage();
-        showAuthModal("ไอดีเครื่องหรือรหัสไม่ถูกต้อง กรุณากรอกใหม่");
-    });
+        socket.on("connect_error", (err) => {
+            console.log("Socket connect_error:", err.message);
+            clearAuthStorage();
+            showAuthModal("ไอดีเครื่องหรือรหัสไม่ถูกต้อง กรุณากรอกใหม่");
+        });
 
-    socket.on("status", (data) => updateStatus(data));
-    socket.on("weight", (data) => updateStatus({ online: true, weight: data.weight }));
-    socket.on("history", (data) => renderHistory(data));
-    socket.on("alerts", (data) => renderAlerts(data));
-    socket.on("alert", () => loadAlerts());
-    socket.on("schedule", (data) => renderSchedule(data));
+        socket.on("status", (data) => updateStatus(data));
+        socket.on("weight", (data) => updateStatus({ online: true, weight: data.weight }));
+        socket.on("history", (data) => renderHistory(data));
+        socket.on("alerts", (data) => renderAlerts(data));
+        socket.on("alert", () => loadAlerts());
+        socket.on("schedule", (data) => renderSchedule(data));
+    }
 
-    // ---------- Event Listeners ----------
+    // ---------- Event Listeners (Safe Mode) ----------
 
-    // ปุ่มเลือกโหมด (ถ้ามีปุ่มใน HTML)
     if (btnCloud) btnCloud.addEventListener("click", () => setControlMode("cloud"));
     if (btnLocal) btnLocal.addEventListener("click", () => setControlMode("local"));
 
-    saveUsageBtn.addEventListener("click", async () => {
-        const usage = Number(dailyUsage.value);
+    saveUsageBtn?.addEventListener("click", async () => {
+        const usage = Number(dailyUsage?.value || 0);
         if (usage <= 0) {
             alert("Daily usage must be greater than 0");
             return;
@@ -443,8 +476,8 @@ function startApp(auth) {
     });
 
     // 🐟 สั่งให้อาหาร (รองรับ Dual Mode)
-    feedBtn.addEventListener("click", async () => {
-        const grams = Number(feedAmount.value);
+    feedBtn?.addEventListener("click", async () => {
+        const grams = Number(feedAmount?.value || 0);
 
         if (grams <= 0) {
             alert("Amount must be greater than 0");
@@ -505,7 +538,7 @@ function startApp(auth) {
     });
 
     // 🛑 หยุดฉุกเฉิน (รองรับ Dual Mode)
-    stopBtn.addEventListener("click", async () => {
+    stopBtn?.addEventListener("click", async () => {
         try {
             if (currentMode === "cloud") {
                 await postJSON("/api/stop");
@@ -525,8 +558,8 @@ function startApp(auth) {
         }
     });
 
-    addSchedule.addEventListener("click", () => {
-        if (scheduleTime.value === "") {
+    addSchedule?.addEventListener("click", () => {
+        if (!scheduleTime || scheduleTime.value === "") {
             alert("Please select time");
             return;
         }
@@ -540,7 +573,7 @@ function startApp(auth) {
         scheduleTime.value = "";
     });
 
-    clearHistory.addEventListener("click", async () => {
+    clearHistory?.addEventListener("click", async () => {
         if (confirm("Clear feeding history?")) {
             await deleteAPI("/api/history");
             loadHistory();
@@ -563,14 +596,14 @@ function startApp(auth) {
 // AUTH GATE
 // =====================================
 
-authForm.addEventListener("submit", async (e) => {
+authForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const deviceId = authDeviceId.value.trim();
-    const deviceCode = authDeviceCode.value.trim();
+    const deviceId = authDeviceId?.value.trim();
+    const deviceCode = authDeviceCode?.value.trim();
 
     if (!deviceId || !deviceCode) {
-        authError.textContent = "กรุณากรอกไอดีเครื่องและรหัส";
+        if (authError) authError.textContent = "กรุณากรอกไอดีเครื่องและรหัส";
         return;
     }
 
@@ -590,20 +623,18 @@ authForm.addEventListener("submit", async (e) => {
             hideAuthModal();
             startApp({ deviceId, deviceCode });
         } else {
-            authError.textContent = "ไอดีเครื่องหรือรหัสไม่ถูกต้อง";
+            if (authError) authError.textContent = "ไอดีเครื่องหรือรหัสไม่ถูกต้อง";
         }
     } catch (err) {
-        authError.textContent = "เชื่อมต่อ server ไม่ได้ ลองใหม่อีกครั้ง";
+        if (authError) authError.textContent = "เชื่อมต่อ server ไม่ได้ ลองใหม่อีกครั้ง";
     }
 });
 
-if (logoutBtn) {
-    logoutBtn.addEventListener("click", () => {
-        clearAuthStorage();
-        if (socket) socket.disconnect();
-        location.reload();
-    });
-}
+logoutBtn?.addEventListener("click", () => {
+    clearAuthStorage();
+    if (socket) socket.disconnect();
+    location.reload();
+});
 
 // ---------- Bootstrap ----------
 
