@@ -24,7 +24,7 @@ HX711 scale;
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 ESP8266WebServer server(80);
-WiFiManager wm; // ย้ายออกมาเป็น Global เพื่อใช้ร่วมกับ Callback
+WiFiManager wm;
 
 // --- MQTT Topics ---
 String subFeedTopic   = "fishfeeder/" + String(DEVICE_ID) + "/cmd/feed";
@@ -34,7 +34,7 @@ String pubWeightTopic = "fishfeeder/" + String(DEVICE_ID) + "/weight";
 
 // Timers & State Variables
 unsigned long lastWeightReport = 0;
-const long reportInterval = 5000;
+const long reportInterval = 5000; // 5 วินาที
 
 bool isFeeding = false;
 unsigned long feedStartTime = 0;
@@ -48,19 +48,69 @@ void triggerFeeding(int amountGrams);
 void stopFeeding();
 void emergencyStop();
 void publishStatus(String state, String msg);
-void publishWeight();
+void readAndReportWeight(bool isWifiConnected);
 void handleLocalFeed();
 void handleLocalStop();
 void bindServerCallback();
+void sendCustomUI(ESP8266WebServer *srv);
+
+// ----------------------------------------------------
+// 🎨 หน้า Web UI แบบ Custom
+// ----------------------------------------------------
+const char PAGE_LOCAL_UI[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ควบคุมแบบ Local (Direct)</title>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #f0f2f5; margin: 0; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: #ffffff; border-radius: 16px; padding: 32px 24px; width: 100%; max-width: 420px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .title { font-size: 22px; font-weight: bold; color: #1a1a1a; margin-bottom: 8px; }
+    .subtitle { font-size: 14px; color: #65676b; margin-bottom: 24px; }
+    .form-group { text-align: left; margin-bottom: 16px; }
+    .form-group label { font-size: 13px; font-weight: 600; color: #444; }
+    .input-amount { width: 100%; padding: 10px 12px; margin-top: 6px; border: 1px solid #ced4da; border-radius: 8px; font-size: 15px; outline: none; }
+    .btn { display: block; width: 100%; padding: 14px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; text-decoration: none; text-align: center; margin-bottom: 12px; transition: background 0.2s; }
+    .btn-blue { background-color: #007bff; color: white; }
+    .btn-blue:hover { background-color: #0056b3; }
+    .btn-red { background-color: #dc3545; color: white; }
+    .btn-red:hover { background-color: #a71d2a; }
+    .btn-grey { background-color: #6c757d; color: white; }
+    .btn-grey:hover { background-color: #545b62; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">🐟 ควบคุมแบบ Local (Direct)</div>
+    <div class="subtitle">เชื่อมต่อตรงกับเครื่องให้อาหารปลา</div>
+    
+    <form action="/local-feed" method="GET">
+      <div class="form-group">
+        <label>ระบุปริมาณอาหาร (กรัม):</label>
+        <input type="number" name="amount" class="input-amount" value="10" min="1" max="500" required>
+      </div>
+      <button type="submit" class="btn btn-blue">🐟 สั่งให้อาหารทันที</button>
+    </form>
+
+    <a href="/local-stop" class="btn btn-red">🛑 หยุดฉุกเฉิน (Stop)</a>
+    <a href="/wifi" class="btn btn-grey">⚙️ ตั้งค่าเชื่อมต่อ Wi-Fi บ้าน</a>
+  </div>
+</body>
+</html>
+)rawliteral";
 
 void setup() {
   Serial.begin(115200);
+  delay(500);
+  Serial.println("\n--- [System Initialization] ---");
 
-  // Pin Modes setup (สำหรับ Active LOW Relay)
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, HIGH); // HIGH = ปิด Relay
-  digitalWrite(LED_PIN, HIGH);   // HIGH = ดับ LED
+  digitalWrite(RELAY_PIN, HIGH); // Active LOW -> ปิด Relay
+  digitalWrite(LED_PIN, HIGH);
 
   Wire.begin(SDA_PIN, SCL_PIN);
 
@@ -68,82 +118,86 @@ void setup() {
   scale.set_scale(CALIBRATION_FACTOR);
   scale.tare();
 
-  // ระบบเชื่อมต่อ Wi-Fi และแสดงปุ่มสั่งงานหน้า AP
+  // ตั้งค่า WiFiManager
   setupWiFi();
 
-  // 🟢 ตั้งค่า HTTP Web Server สำหรับ Local Mode (หลังต่อ Wi-Fi บ้านสำเร็จ)
+  // ตั้งค่า Web Server หน้า Local
+  server.on("/", []() { sendCustomUI(&server); });
+  server.on("/local", []() { sendCustomUI(&server); });
   server.on("/local-feed", handleLocalFeed);
   server.on("/local-stop", handleLocalStop);
   server.begin();
-  Serial.println("HTTP Server started for Local Mode!");
 
   espClient.setInsecure();
   espClient.setBufferSizes(512, 512);
   client.setServer(MQTT_HOST, MQTT_PORT);
   client.setCallback(callback);
   client.setBufferSize(512);
+
+  Serial.println("--- [System Ready] ---");
 }
 
 void loop() {
-  // ประมวลผลคำสั่ง HTTP (Local Mode เมื่อต่อ Wi-Fi แล้ว)
-  server.handleClient();
-
-  if (!client.connected()) {
-    reconnectMQTT();
-  }
-  client.loop();
+  wm.process(); // คอยรัน WiFiManager AP
 
   unsigned long currentMillis = millis();
+  bool isWifiConnected = (WiFi.status() == WL_CONNECTED);
 
-  // ตรวจสอบเวลาให้อาหาร (Non-blocking)
-  if (isFeeding) {
-    if (currentMillis - feedStartTime >= feedDuration) {
-      stopFeeding();
-      publishStatus("IDLE", "Feeding complete");
-      publishWeight();
+  // 1. 📡 ตรวจจับสถานะการเชื่อมต่อ (แจ้งเตือนเมื่อเปลี่ยนสถานะเท่านั้น)
+  static bool lastWifiConnected = false;
+  if (isWifiConnected != lastWifiConnected) {
+    lastWifiConnected = isWifiConnected;
+    if (isWifiConnected) {
+      Serial.print("\n[WiFi] Connected! Local IP: ");
+      Serial.println(WiFi.localIP());
+      digitalWrite(LED_PIN, LOW);
+    } else {
+      Serial.println("\n[WiFi] Disconnected! Running in AP Mode ('FishFeeder-Setup')");
+      digitalWrite(LED_PIN, HIGH);
     }
   }
 
-  // ส่งค่าน้ำหนักทุกช่วงเวลา
+  // 2. 🌐 จัดการ Web Server และ MQTT เมื่อเชื่อม Wi-Fi บ้านได้
+  if (isWifiConnected) {
+    server.handleClient();
+
+    if (!client.connected()) {
+      reconnectMQTT();
+    } else {
+      client.loop();
+    }
+  }
+
+  // 3. ⚙️ ระบบนับเวลาปิดมอเตอร์สั่งให้อาหาร
+  if (isFeeding) {
+    if (currentMillis - feedStartTime >= feedDuration) {
+      stopFeeding();
+      Serial.println("[Status] Feeding Complete -> Motor STOP");
+      if (isWifiConnected) {
+        publishStatus("IDLE", "Feeding complete");
+      }
+    }
+  }
+
+  // 4. ⚖️ พิมพ์ค่าน้ำหนักทุกๆ 5 วินาที (ทำงานตลอดเวลา)
   if (currentMillis - lastWeightReport >= reportInterval) {
     lastWeightReport = currentMillis;
-    publishWeight();
+    readAndReportWeight(isWifiConnected);
   }
+
+  yield(); // ป้องกัน ESP8266 WDT Reset
 }
 
 // ----------------------------------------------------
-// 📶 เชื่อมต่อ Wi-Fi + ช่องกรอกปริมาณอาหารหน้า Setup AP
+// 📶 ตั้งค่า WiFiManager
 // ----------------------------------------------------
 void setupWiFi() {
   String dashboardUrl = "https://feederproject.vercel.app/"; 
 
-  // 🟢 เพิ่มช่องกรอกตัวเลข (Input Box) พร้อมปุ่มส่งค่ากรัม
-  WiFiManagerParameter custom_feed_form(
-    "<br/>"
-    "<form action='/local-feed' method='GET' style='margin-bottom:12px;text-align:left;'>"
-      "<label style='font-weight:bold;font-size:14px;'>🐟 ระบุปริมาณอาหาร (กรัม):</label><br/>"
-      "<input type='number' name='amount' value='10' min='1' max='500' "
-             "style='width:100%;padding:10px;margin:6px 0 12px 0;box-sizing:border-box;border:1px solid #ccc;border-radius:6px;font-size:16px;'><br/>"
-      "<button type='submit' style='width:100%;background-color:#28a745;color:white;padding:12px;border:none;border-radius:6px;font-size:16px;font-weight:bold;cursor:pointer;'>"
-        "🚀 สั่งให้อาหาร (Local AP)"
-      "</button>"
-    "</form>"
-  );
-  
-  WiFiManagerParameter custom_stop_btn(
-    "<a href='/local-stop'>"
-    "<button type='button' style='width:100%;background-color:#dc3545;color:white;padding:12px;border:none;border-radius:6px;font-size:16px;font-weight:bold;cursor:pointer;'>"
-      "🛑 หยุดฉุกเฉิน (Emergency Stop)"
-    "</button></a><br/><hr/>"
-  );
-
-  wm.addParameter(&custom_feed_form);
-  wm.addParameter(&custom_stop_btn);
-
-  // ผูก Route /local-feed และ /local-stop เข้ากับ WebServer ของ WiFiManager
+  wm.setDebugOutput(false);            // ปิด Log RED! ใน Serial
+  wm.setConfigPortalBlocking(false);  // ปล่อยให้ loop() ทำงานได้
   wm.setWebServerCallback(bindServerCallback);
 
-  // เมื่อผู้ใช้กด Save Wi-Fi สำเร็จ ให้เด้งไปหน้า Vercel Dashboard
   String customHead = "<script>"
                       "if (window.location.pathname === '/wifisave') {"
                       "  setTimeout(function(){ window.location.href = '" + dashboardUrl + "'; }, 2000);"
@@ -151,26 +205,26 @@ void setupWiFi() {
                       "</script>";
   wm.setCustomHeadElement(customHead.c_str());
 
-  // ล้างค่า Wi-Fi เก่าออกทุกครั้งที่เปิดเครื่อง/เสียบสายใหม่
-  wm.resetSettings();
+  wm.resetSettings(); // ล้างค่า Wi-Fi เดิมเมื่อเปิดเครื่องใหม่
 
-  bool res = wm.autoConnect("FishFeeder-Setup");
-
-  if (!res) {
-    Serial.println("Failed to connect or hit timeout");
-    ESP.restart();
+  if (wm.startConfigPortal("FishFeeder-Setup")) {
+    Serial.println("[WiFi] Connected to saved network directly!");
   } else {
-    Serial.println("\nWiFi connected successfully!");
-    Serial.print("Local IP Address: ");
-    Serial.println(WiFi.localIP());
-    digitalWrite(LED_PIN, LOW);
+    Serial.println("[WiFi] AP Mode Active -> SSID: 'FishFeeder-Setup' (192.168.4.1)");
   }
 }
 
+void sendCustomUI(ESP8266WebServer *srv) {
+  srv->send(200, "text/html", PAGE_LOCAL_UI);
+}
+
 // ----------------------------------------------------
-// 🌐 Route สำหรับสั่งงานช่วงค้างหน้า WiFiManager (AP Mode)
+// 🌐 Bind Routes ใน WiFiManager AP Server
 // ----------------------------------------------------
 void bindServerCallback() {
+  wm.server->on("/", []() { sendCustomUI(wm.server.get()); });
+  wm.server->on("/local", []() { sendCustomUI(wm.server.get()); });
+
   wm.server->on("/local-feed", []() {
     int amount = 10;
     if (wm.server->hasArg("amount")) {
@@ -180,28 +234,30 @@ void bindServerCallback() {
     
     triggerFeeding(amount);
     
-    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>"
-                  "<body style='text-align:center;font-family:sans-serif;padding-top:50px;'>"
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><meta charset='UTF-8'></head>"
+                  "<body style='text-align:center;font-family:sans-serif;padding-top:50px;background:#f0f2f5;'>"
+                  "<div style='background:white;padding:30px;border-radius:16px;max-width:320px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.06);'>"
                   "<h2 style='color:#28a745;'>✅ สั่งให้อาหาร " + String(amount) + " กรัม สำเร็จ!</h2>"
-                  "<br/><a href='/'><button style='padding:10px 20px;font-size:16px;'>กลับหน้าหลัก</button></a>"
-                  "</body></html>";
+                  "<br/><a href='/local' style='background:#007bff;color:white;padding:12px 20px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:bold;'>กลับหน้าหลัก</a>"
+                  "</div></body></html>";
     wm.server->send(200, "text/html", html);
   });
 
   wm.server->on("/local-stop", []() {
     emergencyStop();
     
-    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>"
-                  "<body style='text-align:center;font-family:sans-serif;padding-top:50px;'>"
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'><meta charset='UTF-8'></head>"
+                  "<body style='text-align:center;font-family:sans-serif;padding-top:50px;background:#f0f2f5;'>"
+                  "<div style='background:white;padding:30px;border-radius:16px;max-width:320px;margin:auto;box-shadow:0 4px 20px rgba(0,0,0,0.06);'>"
                   "<h2 style='color:#dc3545;'>🛑 สั่งหยุดฉุกเฉินเรียบร้อย!</h2>"
-                  "<br/><a href='/'><button style='padding:10px 20px;font-size:16px;'>กลับหน้าหลัก</button></a>"
-                  "</body></html>";
+                  "<br/><a href='/local' style='background:#007bff;color:white;padding:12px 20px;text-decoration:none;border-radius:8px;display:inline-block;font-weight:bold;'>กลับหน้าหลัก</a>"
+                  "</div></body></html>";
     wm.server->send(200, "text/html", html);
   });
 }
 
 // ----------------------------------------------------
-// 🌐 Route Handlers สำหรับ Local Mode (หลังต่อ Wi-Fi บ้านแล้ว)
+// 🌐 Route Handlers สำหรับ Local Mode
 // ----------------------------------------------------
 void handleLocalFeed() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
@@ -220,7 +276,6 @@ void handleLocalFeed() {
 
 void handleLocalStop() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
-  
   emergencyStop();
   
   String jsonResponse = "{\"success\":true,\"message\":\"Local emergency stop executed\"}";
@@ -228,23 +283,24 @@ void handleLocalStop() {
 }
 
 // ----------------------------------------------------
-// 🔄 การเชื่อมต่อ MQTT Broker
+// 🔄 การเชื่อมต่อ MQTT Broker (Non-blocking)
 // ----------------------------------------------------
 void reconnectMQTT() {
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
+  static unsigned long lastReconnectAttempt = 0;
+  unsigned long now = millis();
+
+  if (!client.connected() && (now - lastReconnectAttempt > 5000)) {
+    lastReconnectAttempt = now;
+    Serial.print("[MQTT] Connecting to Broker...");
     String clientId = "ESP8266Client-" + String(DEVICE_ID) + "-" + String(random(0xffff), HEX);
 
     if (client.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
-      Serial.println("CONNECTED!");
+      Serial.println(" SUCCESS!");
       client.subscribe(subFeedTopic.c_str());
       client.subscribe(subStopTopic.c_str());
       publishStatus("ONLINE", "Device connected & scale ready");
     } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
+      Serial.printf(" FAILED (rc=%d)\n", client.state());
     }
   }
 }
@@ -254,7 +310,6 @@ void reconnectMQTT() {
 // ----------------------------------------------------
 void callback(char* topic, byte* payload, unsigned int length) {
   String incomingTopic = String(topic);
-  
   StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, payload, length);
 
@@ -272,8 +327,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 // ⚙️ กลไกการสั่งให้อาหาร & หยุด
 // ----------------------------------------------------
 void triggerFeeding(int amountGrams) {
-  Serial.printf("Feeding action started! Target: %d grams\n", amountGrams);
-  publishStatus("FEEDING", "Relay ON - Dispensing food...");
+  Serial.printf("[Action] Dispensing %d grams of food...\n", amountGrams);
 
   int duration = (amountGrams / 10) * 2000;
   if (duration < 1000) duration = 1000;
@@ -282,36 +336,51 @@ void triggerFeeding(int amountGrams) {
   feedStartTime = millis();
   isFeeding = true;
 
-  digitalWrite(RELAY_PIN, LOW); // Active LOW -> สั่ง LOW เพื่อเปิด
+  digitalWrite(RELAY_PIN, LOW); // Active LOW -> เปิด Relay
   digitalWrite(LED_PIN, LOW);
+
+  if (WiFi.status() == WL_CONNECTED) {
+    publishStatus("FEEDING", "Relay ON - Dispensing food...");
+  }
 }
 
 void stopFeeding() {
   isFeeding = false;
-  digitalWrite(RELAY_PIN, HIGH); // Active LOW -> สั่ง HIGH เพื่อปิด
+  digitalWrite(RELAY_PIN, HIGH); // Active LOW -> ปิด Relay
   digitalWrite(LED_PIN, HIGH);
 }
 
 void emergencyStop() {
   stopFeeding();
-  Serial.println("EMERGENCY STOP TRIGGERED!");
-  publishStatus("STOPPED", "Emergency stop executed");
+  Serial.println("[Status] EMERGENCY STOP EXECUTED!");
+  if (WiFi.status() == WL_CONNECTED) {
+    publishStatus("STOPPED", "Emergency stop executed");
+  }
 }
 
-void publishWeight() {
+// ----------------------------------------------------
+// ⚖️ อ่านและรายงานค่าน้ำหนัก (ทุกๆ 5 วินาที)
+// ----------------------------------------------------
+void readAndReportWeight(bool isWifiConnected) {
   if (scale.is_ready()) {
-    float weight = scale.get_units(5);
+    float weight = scale.get_units(3); // อ่านค่า 3 รอบเพื่อความรวดเร็ว
     if (weight < 0) weight = 0.0;
 
-    StaticJsonDocument<128> doc;
-    doc["weight_grams"] = weight;
-    doc["timestamp"] = millis() / 1000;
+    // 🟢 พิมพ์ออก Serial Monitor เสมอ
+    Serial.printf("[Weight] Current Food Weight: %.2f g\n", weight);
 
-    char buffer[128];
-    serializeJson(doc, buffer);
+    // 🟢 ส่งขึ้น MQTT เมื่อเชื่อมต่อเน็ตอยู่
+    if (isWifiConnected && client.connected()) {
+      StaticJsonDocument<128> doc;
+      doc["weight_grams"] = weight;
+      doc["timestamp"] = millis() / 1000;
 
-    client.publish(pubWeightTopic.c_str(), buffer);
-    Serial.printf("Current Food Weight: %.2f g\n", weight);
+      char buffer[128];
+      serializeJson(doc, buffer);
+      client.publish(pubWeightTopic.c_str(), buffer);
+    }
+  } else {
+    Serial.println("[Weight] Loadcell / HX711 Not Ready!");
   }
 }
 
