@@ -1,4 +1,5 @@
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -22,6 +23,8 @@
 HX711 scale;
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
+ESP8266WebServer server(80);
+WiFiManager wm; // ย้ายออกมาเป็น Global เพื่อใช้ร่วมกับ Callback
 
 // --- MQTT Topics ---
 String subFeedTopic   = "fishfeeder/" + String(DEVICE_ID) + "/cmd/feed";
@@ -46,6 +49,9 @@ void stopFeeding();
 void emergencyStop();
 void publishStatus(String state, String msg);
 void publishWeight();
+void handleLocalFeed();
+void handleLocalStop();
+void bindServerCallback();
 
 void setup() {
   Serial.begin(115200);
@@ -62,17 +68,26 @@ void setup() {
   scale.set_scale(CALIBRATION_FACTOR);
   scale.tare();
 
-  // ระบบเชื่อมต่อ Wi-Fi และ Redirect ไป Vercel Dashboard
+  // ระบบเชื่อมต่อ Wi-Fi และแสดงปุ่มสั่งงานหน้า AP
   setupWiFi();
+
+  // 🟢 ตั้งค่า HTTP Web Server สำหรับ Local Mode (หลังต่อ Wi-Fi บ้านสำเร็จ)
+  server.on("/local-feed", handleLocalFeed);
+  server.on("/local-stop", handleLocalStop);
+  server.begin();
+  Serial.println("HTTP Server started for Local Mode!");
 
   espClient.setInsecure();
   espClient.setBufferSizes(512, 512);
   client.setServer(MQTT_HOST, MQTT_PORT);
   client.setCallback(callback);
-  client.setBufferSize(512); // 🟢 ขยาย Buffer ของ PubSubClient ให้รองรับ JSON
+  client.setBufferSize(512);
 }
 
 void loop() {
+  // ประมวลผลคำสั่ง HTTP (Local Mode เมื่อต่อ Wi-Fi แล้ว)
+  server.handleClient();
+
   if (!client.connected()) {
     reconnectMQTT();
   }
@@ -97,13 +112,38 @@ void loop() {
 }
 
 // ----------------------------------------------------
-// 📶 เชื่อมต่อ Wi-Fi และ Redirect ไป Vercel Dashboard
+// 📶 เชื่อมต่อ Wi-Fi + ช่องกรอกปริมาณอาหารหน้า Setup AP
 // ----------------------------------------------------
 void setupWiFi() {
-  WiFiManager wm;
   String dashboardUrl = "https://feederproject.vercel.app/"; 
 
-  // เมื่อผู้ใช้กด Save Wi-Fi สำเร็จ ให้เด้งไปหน้า Vercel Dashboard ทันที
+  // 🟢 เพิ่มช่องกรอกตัวเลข (Input Box) พร้อมปุ่มส่งค่ากรัม
+  WiFiManagerParameter custom_feed_form(
+    "<br/>"
+    "<form action='/local-feed' method='GET' style='margin-bottom:12px;text-align:left;'>"
+      "<label style='font-weight:bold;font-size:14px;'>🐟 ระบุปริมาณอาหาร (กรัม):</label><br/>"
+      "<input type='number' name='amount' value='10' min='1' max='500' "
+             "style='width:100%;padding:10px;margin:6px 0 12px 0;box-sizing:border-box;border:1px solid #ccc;border-radius:6px;font-size:16px;'><br/>"
+      "<button type='submit' style='width:100%;background-color:#28a745;color:white;padding:12px;border:none;border-radius:6px;font-size:16px;font-weight:bold;cursor:pointer;'>"
+        "🚀 สั่งให้อาหาร (Local AP)"
+      "</button>"
+    "</form>"
+  );
+  
+  WiFiManagerParameter custom_stop_btn(
+    "<a href='/local-stop'>"
+    "<button type='button' style='width:100%;background-color:#dc3545;color:white;padding:12px;border:none;border-radius:6px;font-size:16px;font-weight:bold;cursor:pointer;'>"
+      "🛑 หยุดฉุกเฉิน (Emergency Stop)"
+    "</button></a><br/><hr/>"
+  );
+
+  wm.addParameter(&custom_feed_form);
+  wm.addParameter(&custom_stop_btn);
+
+  // ผูก Route /local-feed และ /local-stop เข้ากับ WebServer ของ WiFiManager
+  wm.setWebServerCallback(bindServerCallback);
+
+  // เมื่อผู้ใช้กด Save Wi-Fi สำเร็จ ให้เด้งไปหน้า Vercel Dashboard
   String customHead = "<script>"
                       "if (window.location.pathname === '/wifisave') {"
                       "  setTimeout(function(){ window.location.href = '" + dashboardUrl + "'; }, 2000);"
@@ -111,8 +151,8 @@ void setupWiFi() {
                       "</script>";
   wm.setCustomHeadElement(customHead.c_str());
 
-  // 🚨 ปลดคอมเมนต์บรรทัดล่าง หากต้องการล้างค่า Wi-Fi เก่าออกเพื่อทดสอบ
-  // wm.resetSettings();
+  // ล้างค่า Wi-Fi เก่าออกทุกครั้งที่เปิดเครื่อง/เสียบสายใหม่
+  wm.resetSettings();
 
   bool res = wm.autoConnect("FishFeeder-Setup");
 
@@ -121,8 +161,70 @@ void setupWiFi() {
     ESP.restart();
   } else {
     Serial.println("\nWiFi connected successfully!");
-    digitalWrite(LED_PIN, LOW); // ไฟติดเมื่อต่อ Wi-Fi บ้านสำเร็จ
+    Serial.print("Local IP Address: ");
+    Serial.println(WiFi.localIP());
+    digitalWrite(LED_PIN, LOW);
   }
+}
+
+// ----------------------------------------------------
+// 🌐 Route สำหรับสั่งงานช่วงค้างหน้า WiFiManager (AP Mode)
+// ----------------------------------------------------
+void bindServerCallback() {
+  wm.server->on("/local-feed", []() {
+    int amount = 10;
+    if (wm.server->hasArg("amount")) {
+      amount = wm.server->arg("amount").toInt();
+    }
+    if (amount <= 0) amount = 10;
+    
+    triggerFeeding(amount);
+    
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>"
+                  "<body style='text-align:center;font-family:sans-serif;padding-top:50px;'>"
+                  "<h2 style='color:#28a745;'>✅ สั่งให้อาหาร " + String(amount) + " กรัม สำเร็จ!</h2>"
+                  "<br/><a href='/'><button style='padding:10px 20px;font-size:16px;'>กลับหน้าหลัก</button></a>"
+                  "</body></html>";
+    wm.server->send(200, "text/html", html);
+  });
+
+  wm.server->on("/local-stop", []() {
+    emergencyStop();
+    
+    String html = "<html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>"
+                  "<body style='text-align:center;font-family:sans-serif;padding-top:50px;'>"
+                  "<h2 style='color:#dc3545;'>🛑 สั่งหยุดฉุกเฉินเรียบร้อย!</h2>"
+                  "<br/><a href='/'><button style='padding:10px 20px;font-size:16px;'>กลับหน้าหลัก</button></a>"
+                  "</body></html>";
+    wm.server->send(200, "text/html", html);
+  });
+}
+
+// ----------------------------------------------------
+// 🌐 Route Handlers สำหรับ Local Mode (หลังต่อ Wi-Fi บ้านแล้ว)
+// ----------------------------------------------------
+void handleLocalFeed() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  int amount = 10;
+  if (server.hasArg("amount")) {
+    amount = server.arg("amount").toInt();
+  }
+  if (amount <= 0) amount = 10;
+  
+  triggerFeeding(amount);
+  
+  String jsonResponse = "{\"success\":true,\"message\":\"Local feeding started\",\"amount\":" + String(amount) + "}";
+  server.send(200, "application/json", jsonResponse);
+}
+
+void handleLocalStop() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  emergencyStop();
+  
+  String jsonResponse = "{\"success\":true,\"message\":\"Local emergency stop executed\"}";
+  server.send(200, "application/json", jsonResponse);
 }
 
 // ----------------------------------------------------
@@ -148,7 +250,7 @@ void reconnectMQTT() {
 }
 
 // ----------------------------------------------------
-// 📩 รับคำสั่ง (Callback)
+// 📩 รับคำสั่ง (MQTT Callback)
 // ----------------------------------------------------
 void callback(char* topic, byte* payload, unsigned int length) {
   String incomingTopic = String(topic);
