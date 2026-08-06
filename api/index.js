@@ -17,7 +17,6 @@ try {
   if (!admin.apps.length) {
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
     if (privateKey) {
-      // จัดการตัวอักษรขึ้นบรรทัดใหม่ \n ให้ถูกต้องสำหรับ Vercel
       privateKey = privateKey.replace(/\\n/g, '\n').replace(/^"(.*)"$/, '$1');
     }
 
@@ -47,7 +46,7 @@ function publishMQTT(topic, payload) {
       username: process.env.MQTT_USER,
       password: process.env.MQTT_PASS,
       rejectUnauthorized: true,
-      connectTimeout: 5000
+      connectTimeout: 3000 // ลด Timeout เหลือ 3 วินาทีเพื่อไม่ให้รอนาน
     };
 
     const client = mqtt.connect(mqttOptions);
@@ -55,12 +54,12 @@ function publishMQTT(topic, payload) {
     const timeout = setTimeout(() => {
       client.end(true);
       reject(new Error('MQTT connection timeout'));
-    }, 7000);
+    }, 4000);
 
     client.on('connect', () => {
       client.publish(topic, payload, { qos: 1 }, (err) => {
         clearTimeout(timeout);
-        client.end(); // ปิดการเชื่อมต่อเมื่อส่งเสร็จ
+        client.end();
         if (err) reject(err);
         else resolve();
       });
@@ -83,56 +82,79 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'Online', timestamp: new Date() });
 });
 
-// สั่งให้อาหารปลา (Feed Command)
+// 🐟 สั่งให้อาหารปลา (Feed Command)
 app.post('/api/feed', async (req, res) => {
   try {
     const { deviceId, amountGrams } = req.body;
     if (!deviceId) return res.status(400).json({ error: 'Missing deviceId parameter' });
 
-    const topic = `fishfeeder/${deviceId}/cmd/feed`;
-    const payload = JSON.stringify({ 
-      action: 'FEED',
-      amount: amountGrams || 10, 
-      timestamp: Math.floor(Date.now() / 1000)
-    });
+    const feedAmount = amountGrams || 10;
+    let mqttSuccess = false;
 
-    // ส่งข้อความผ่าน MQTT
-    await publishMQTT(topic, payload);
-
-    // บันทึก Log ลง Firebase (ถ้ามี)
-    try {
-      if (admin.apps.length) {
+    // 1. เขียนคำสั่งเข้า Firebase Realtime Database ทันที (ให้ ESP32 อ่านไปหมุนมอเตอร์)
+    if (admin.apps.length) {
+      try {
         const db = admin.database();
+        
+        // 🟢 ส่งค่าเข้า cmd_feed ให้ ESP32 ดึงไปทำงาน
+        await db.ref(`devices/${deviceId}/cmd_feed`).set(feedAmount);
+
+        // บันทึก Log
         await db.ref(`devices/${deviceId}/logs`).push({
           action: 'FEED',
-          amount: amountGrams || 10,
+          amount: feedAmount,
           timestamp: admin.database.ServerValue.TIMESTAMP
         });
+      } catch (dbErr) {
+        console.error('❌ Firebase write error:', dbErr.message);
       }
-    } catch (dbErr) {
-      console.error('Firebase log error:', dbErr.message);
     }
 
-    res.json({ success: true, message: `Feed command sent to device: ${deviceId}` });
+    // 2. พยายามส่ง MQTT สำรอง (ครอบ try-catch เพื่อไม่ให้ API พังถ้า MQTT ใน Vercel Timeout)
+    try {
+      const topic = `fishfeeder/${deviceId}/cmd/feed`;
+      const payload = JSON.stringify({ action: 'FEED', amount: feedAmount, timestamp: Math.floor(Date.now() / 1000) });
+      await publishMQTT(topic, payload);
+      mqttSuccess = true;
+    } catch (mqttErr) {
+      console.warn('⚠️ MQTT Publish skipped/timeout (Vercel Serverless):', mqttErr.message);
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Feed command sent to device: ${deviceId}`,
+      mqttSent: mqttSuccess
+    });
   } catch (error) {
     console.error('API /api/feed Error:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// สั่งหยุดฉุกเฉิน (Emergency Stop Command)
+// 🛑 สั่งหยุดฉุกเฉิน (Emergency Stop Command)
 app.post('/api/stop', async (req, res) => {
   try {
     const { deviceId } = req.body;
     if (!deviceId) return res.status(400).json({ error: 'Missing deviceId parameter' });
 
-    const topic = `fishfeeder/${deviceId}/cmd/stop`;
-    const payload = JSON.stringify({ 
-      action: 'EMERGENCY_STOP',
-      timestamp: Math.floor(Date.now() / 1000)
-    });
+    // เคลียร์คำสั่งใน Firebase
+    if (admin.apps.length) {
+      try {
+        const db = admin.database();
+        await db.ref(`devices/${deviceId}/cmd_feed`).set(0);
+      } catch (dbErr) {
+        console.error('❌ Firebase stop error:', dbErr.message);
+      }
+    }
 
-    await publishMQTT(topic, payload);
+    // พยายามส่ง MQTT หยุดฉุกเฉิน
+    try {
+      const topic = `fishfeeder/${deviceId}/cmd/stop`;
+      const payload = JSON.stringify({ action: 'EMERGENCY_STOP', timestamp: Math.floor(Date.now() / 1000) });
+      await publishMQTT(topic, payload);
+    } catch (mqttErr) {
+      console.warn('⚠️ MQTT Stop skipped/timeout:', mqttErr.message);
+    }
 
     res.json({ success: true, message: `EMERGENCY STOP sent to device: ${deviceId}` });
   } catch (error) {

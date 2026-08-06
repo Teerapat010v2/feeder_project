@@ -11,3 +11,6 @@
 #define MQTT_USER "teerapat"
 #define MQTT_PASS "Teerapat99"
 
+// 🔥 Firebase Settings
+#define FIREBASE_HOST "kaptun-e8c23-default-rtdb.asia-southeast1.firebasedatabase.app" // ตัด https:// ออก
+#define FIREBASE_AUTH "YVW3NrVPh1l4utLzK2qFtvZSYrWNMHJzIZHGzl1e"
