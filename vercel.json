@@ -1,9 +1,5 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/index.js"
-    }
+    { "source": "/api/(.*)", "destination": "/api/index.js" }
   ]
 }
