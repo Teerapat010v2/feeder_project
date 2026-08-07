@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งค่าอุปกรณ์ - Fish Feeder</title>
+    <link rel="stylesheet" href="web/style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="btn-back">⬅️ กลับหน้าหลัก</a>
+        <h1>⚙️ ตั้งค่าอุปกรณ์ & ระบบ</h1>
+
+        <!-- เซ็ตศูนย์ตาชั่ง -->
+        <div class="card">
+            <h3>⚖️ จัดการตาชั่ง (Load Cell)</h3>
+            <p>กดปุ่มนี้เมื่อต้องการเซ็ตค่าน้ำหนักบนจานให้เป็น 0 กรัม (Tare)</p>
+            <button id="tareBtn" class="btn-warning">🔄 เซ็ตศูนย์ตาชั่ง (Tare)</button>
+        </div>
+
+        <!-- ตั้งค่าการใช้งานประจำวัน -->
+        <div class="card" style="margin-top: 20px;">
+            <h3>📊 ตั้งค่าปริมาณอาหารต่อวัน</h3>
+            <div class="input-group">
+                <label for="dailyUsageInput">ปริมาณที่ปลาทานต่อวัน (กรัม):</label>
+                <input type="number" id="dailyUsageInput" value="100">
+            </div>
+            <button id="saveUsageBtn" class="btn-primary">บันทึกตั้งค่า</button>
+        </div>
+
+        <!-- ข้อมูลเครื่อง -->
+        <div class="card" style="margin-top: 20px;">
+            <h3>📱 ข้อมูลการเชื่อมต่อ</h3>
+            <div class="input-group">
+                <label>Device ID:</label>
+                <input type="text" id="deviceIdDisplay" value="device123" readonly>
+            </div>
+        </div>
+    </div>
+    <script src="web/app.js"></script>
+</body>
+</html>

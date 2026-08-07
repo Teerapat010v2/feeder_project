@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ประวัติการให้อาหาร - Fish Feeder</title>
+    <link rel="stylesheet" href="web/style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="btn-back">⬅️ กลับหน้าหลัก</a>
+        <h1>📜 ประวัติการให้อาหารย้อนหลัง</h1>
+
+        <div class="action-bar">
+            <button id="clearHistoryBtn" class="btn-danger">🗑️ ล้างประวัติทั้งหมด</button>
+        </div>
+
+        <div class="card" style="margin-top: 15px;">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>วัน-เวลา</th>
+                        <th>ปริมาณ (กรัม)</th>
+                        <th>โหมดสั่งการ</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTable">
+                    <!-- ประวัติจะถูกดึงมาใส่ด้วย JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="web/app.js"></script>
+</body>
+</html>

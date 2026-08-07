@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งเวลาให้อาหาร - Fish Feeder</title>
+    <link rel="stylesheet" href="web/style.css">
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="btn-back">⬅️ กลับหน้าหลัก</a>
+        <h1>⏰ ตั้งเวลาให้อาหารอัตโนมัติ</h1>
+
+        <!-- ฟอร์มเพิ่มเวลา -->
+        <div class="card">
+            <h3>➕ เพิ่มเวลาให้อาหาร</h3>
+            <div class="input-group">
+                <label for="scheduleTime">เวลาที่ต้องการ:</label>
+                <input type="time" id="scheduleTime" required>
+            </div>
+            <div class="input-group">
+                <label for="scheduleAmount">ปริมาณอาหาร (กรัม):</label>
+                <input type="number" id="scheduleAmount" value="10" min="1" max="100">
+            </div>
+            <button id="addScheduleBtn" class="btn-primary">บันทึกเวลา</button>
+        </div>
+
+        <!-- รายการตารางเวลา -->
+        <div class="card" style="margin-top: 20px;">
+            <h3>📋 ตารางเวลาที่ตั้งไว้</h3>
+            <ul id="scheduleList" class="list-group">
+                <!-- รายการจะถูกสร้างผ่าน JS -->
+            </ul>
+        </div>
+    </div>
+    <script src="web/app.js"></script>
+</body>
+</html>
