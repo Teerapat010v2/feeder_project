@@ -73,29 +73,74 @@ function publishMQTT(topic, payload) {
 }
 
 // ----------------------------------------------------
-// 3. REST API Routes
+// 3. REST API Routes (เพิ่มส่วนอ่านข้อมูลเพื่อแก้ 404)
 // ----------------------------------------------------
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Online', timestamp: new Date() });
 });
 
+// 🟢 ดึงสถานะปัจจุบันของอุปกรณ์ (Status & Weight)
+app.get('/api/status', async (req, res) => {
+  try {
+    const deviceId = req.query.deviceId || req.headers['x-device-id'] || 'device123';
+    if (admin.apps.length) {
+      const db = admin.database();
+      const snapshot = await db.ref(`devices/${deviceId}`).once('value');
+      const data = snapshot.val() || {};
+      
+      return res.json({
+        online: true,
+        weight: data.current_weight || 0,
+        lastSeen: data.last_updated ? data.last_updated * 1000 : Date.now(),
+        dailyUsage: 100,
+        status: data.status || 'IDLE'
+      });
+    }
+    res.json({ online: true, weight: 0, dailyUsage: 100 });
+  } catch (error) {
+    res.status(500).json({ online: false, error: error.message });
+  }
+});
+
+// 🟢 ดึงประวัติการให้อาหาร (History)
+app.get('/api/history', async (req, res) => {
+  try {
+    const deviceId = req.query.deviceId || req.headers['x-device-id'] || 'device123';
+    if (admin.apps.length) {
+      const db = admin.database();
+      const snapshot = await db.ref(`devices/${deviceId}/logs`).limitToLast(20).once('value');
+      const logsObj = snapshot.val() || {};
+      const history = Object.values(logsObj).reverse();
+      return res.json(history);
+    }
+    res.json([]);
+  } catch (error) {
+    res.json([]);
+  }
+});
+
+// 🟢 ดึงการแจ้งเตือน (Alerts)
+app.get('/api/alerts', (req, res) => {
+  res.json([]);
+});
+
+// 🟢 ดึงตารางเวลาให้อาหาร (Schedule)
+app.get('/api/schedule', (req, res) => {
+  res.json([]);
+});
+
 // 🐟 สั่งให้อาหารปลา (Feed Command)
 app.post('/api/feed', async (req, res) => {
   try {
-    // 🟢 ดึง deviceId จาก Body หรือ Header (x-device-id) หรือใช้ ค่าเริ่มต้น device123
     const deviceId = req.body.deviceId || req.headers['x-device-id'] || 'device123';
-    // 🟢 ดึงปริมาณอาหาร รองรับทั้ง amountGrams และ grams
     const feedAmount = Number(req.body.amountGrams || req.body.grams || 10);
-
     let mqttSuccess = false;
 
-    // 1. ส่งคำสั่งเข้า Firebase
     if (admin.apps.length) {
       try {
         const db = admin.database();
         await db.ref(`devices/${deviceId}/cmd_feed`).set(feedAmount);
-
         await db.ref(`devices/${deviceId}/logs`).push({
           action: 'FEED',
           amount: feedAmount,
@@ -106,7 +151,6 @@ app.post('/api/feed', async (req, res) => {
       }
     }
 
-    // 2. พยายามส่ง MQTT สำรอง
     try {
       const topic = `fishfeeder/${deviceId}/cmd/feed`;
       const payload = JSON.stringify({ action: 'FEED', amount: feedAmount, timestamp: Math.floor(Date.now() / 1000) });
