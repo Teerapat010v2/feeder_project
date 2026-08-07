@@ -716,3 +716,121 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+// =====================================
+// SETTINGS PAGE WIFI SCAN & CONNECT LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const scanWifiBtn = document.getElementById("scanWifiBtn");
+    const connectWifiBtn = document.getElementById("connectWifiBtn");
+    const forgetWifiBtn = document.getElementById("forgetWifiBtn");
+    
+    const homeSsidInput = document.getElementById("homeSsidInput");
+    const homePasswordInput = document.getElementById("homePasswordInput");
+    const wifiListOptions = document.getElementById("wifiListOptions");
+
+    // ดึง URL ของ ESP32 ( Local IP หรือ Direct Connection )
+    function getEspBaseUrl() {
+        if (typeof currentMode !== "undefined" && currentMode === "local") {
+            const espIp = localStorage.getItem(LOCAL_IP_KEY) || "192.168.4.1";
+            return `http://${espIp}`;
+        }
+        return "";
+    }
+
+    // 1. ปุ่มสแกนหา WiFi
+    if (scanWifiBtn) {
+        scanWifiBtn.addEventListener("click", async () => {
+            const originalText = scanWifiBtn.textContent;
+            scanWifiBtn.disabled = true;
+            scanWifiBtn.textContent = "⏳ กำลังสแกน...";
+
+            try {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/scan-wifi` : "/api/scan-wifi";
+                
+                const response = await fetch(targetUrl);
+                if (!response.ok) throw new Error("ไม่สามารถสแกนหา WiFi ได้");
+                
+                const wifiList = await response.json();
+
+                if (wifiListOptions) {
+                    wifiListOptions.innerHTML = "";
+                    if (Array.isArray(wifiList) && wifiList.length > 0) {
+                        wifiList.forEach(ssid => {
+                            if (ssid) {
+                                const option = document.createElement("option");
+                                option.value = ssid;
+                                wifiListOptions.appendChild(option);
+                            }
+                        });
+                        alert(`✅ สแกนพบ ${wifiList.length} เครือข่าย (กดเลือกในช่อง SSID ได้เลย)`);
+                    } else {
+                        alert("⚠️ ไม่พบสัญญาณ WiFi บริเวณใกล้เคียง");
+                    }
+                }
+            } catch (err) {
+                alert("❌ สแกน WiFi ล้มเหลว! ตรวจสอบว่าเชื่อมต่อ Wi-Fi ของ ESP32 อยู่หรือไม่");
+            } finally {
+                scanWifiBtn.disabled = false;
+                scanWifiBtn.textContent = originalText;
+            }
+        });
+    }
+
+    // 2. ปุ่มบันทึก / เชื่อมต่อ WiFi บ้าน
+    if (connectWifiBtn) {
+        connectWifiBtn.addEventListener("click", async () => {
+            const ssid = homeSsidInput?.value.trim();
+            const pass = homePasswordInput?.value.trim() || "";
+
+            if (!ssid) return alert("กรุณากรอกหรือเลือก SSID WiFi บ้าน");
+
+            const originalText = connectWifiBtn.textContent;
+            connectWifiBtn.disabled = true;
+            connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/save-wifi` : "/api/save-wifi";
+
+                const response = await fetch(`${targetUrl}?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
+                    method: "POST"
+                });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ บันทึกเรียบร้อย! ESP32 กำลังรีบูตเพื่อเชื่อมต่อ WiFi บ้านใหม่...");
+                } else {
+                    alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
+                }
+            } catch (err) {
+                alert("❌ ติดต่อ ESP32 ไม่ได้!");
+            } finally {
+                connectWifiBtn.disabled = false;
+                connectWifiBtn.textContent = originalText;
+            }
+        });
+    }
+
+    // 3. ปุ่มลืมเครือข่ายนี้ (Reset WiFi)
+    if (forgetWifiBtn) {
+        forgetWifiBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการลืมเครือข่ายและรีเซ็ตค่า Wi-Fi ใช่หรือไม่?")) return;
+
+            try {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/reset-wifi` : "/api/reset-wifi";
+
+                const response = await fetch(targetUrl, { method: "POST" });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ ลบข้อมูล Wi-Fi เรียบร้อย ESP32 จะทำการรีบูตเข้าสู่ AP Mode");
+                }
+            } catch (err) {
+                alert("❌ ส่งคำสั่งล้างค่าล้มเหลว!");
+            }
+        });
+    }
+});
