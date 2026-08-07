@@ -6,12 +6,11 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
 // ----------------------------------------------------
-// 1. Firebase Admin Initializing (Safe Mode)
+// 1. Firebase Admin Initializing
 // ----------------------------------------------------
 try {
   if (!admin.apps.length) {
@@ -35,7 +34,7 @@ try {
 }
 
 // ----------------------------------------------------
-// 2. Helper Function: ส่ง MQTT ในระบบ Serverless
+// 2. Helper Function: MQTT Publisher
 // ----------------------------------------------------
 function publishMQTT(topic, payload) {
   return new Promise((resolve, reject) => {
@@ -46,7 +45,7 @@ function publishMQTT(topic, payload) {
       username: process.env.MQTT_USER,
       password: process.env.MQTT_PASS,
       rejectUnauthorized: true,
-      connectTimeout: 3000 // ลด Timeout เหลือ 3 วินาทีเพื่อไม่ให้รอนาน
+      connectTimeout: 3000
     };
 
     const client = mqtt.connect(mqttOptions);
@@ -77,7 +76,6 @@ function publishMQTT(topic, payload) {
 // 3. REST API Routes
 // ----------------------------------------------------
 
-// Health Check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Online', timestamp: new Date() });
 });
@@ -85,21 +83,19 @@ app.get('/api/health', (req, res) => {
 // 🐟 สั่งให้อาหารปลา (Feed Command)
 app.post('/api/feed', async (req, res) => {
   try {
-    const { deviceId, amountGrams } = req.body;
-    if (!deviceId) return res.status(400).json({ error: 'Missing deviceId parameter' });
+    // 🟢 ดึง deviceId จาก Body หรือ Header (x-device-id) หรือใช้ ค่าเริ่มต้น device123
+    const deviceId = req.body.deviceId || req.headers['x-device-id'] || 'device123';
+    // 🟢 ดึงปริมาณอาหาร รองรับทั้ง amountGrams และ grams
+    const feedAmount = Number(req.body.amountGrams || req.body.grams || 10);
 
-    const feedAmount = amountGrams || 10;
     let mqttSuccess = false;
 
-    // 1. เขียนคำสั่งเข้า Firebase Realtime Database ทันที (ให้ ESP32 อ่านไปหมุนมอเตอร์)
+    // 1. ส่งคำสั่งเข้า Firebase
     if (admin.apps.length) {
       try {
         const db = admin.database();
-        
-        // 🟢 ส่งค่าเข้า cmd_feed ให้ ESP32 ดึงไปทำงาน
         await db.ref(`devices/${deviceId}/cmd_feed`).set(feedAmount);
 
-        // บันทึก Log
         await db.ref(`devices/${deviceId}/logs`).push({
           action: 'FEED',
           amount: feedAmount,
@@ -110,14 +106,14 @@ app.post('/api/feed', async (req, res) => {
       }
     }
 
-    // 2. พยายามส่ง MQTT สำรอง (ครอบ try-catch เพื่อไม่ให้ API พังถ้า MQTT ใน Vercel Timeout)
+    // 2. พยายามส่ง MQTT สำรอง
     try {
       const topic = `fishfeeder/${deviceId}/cmd/feed`;
       const payload = JSON.stringify({ action: 'FEED', amount: feedAmount, timestamp: Math.floor(Date.now() / 1000) });
       await publishMQTT(topic, payload);
       mqttSuccess = true;
     } catch (mqttErr) {
-      console.warn('⚠️ MQTT Publish skipped/timeout (Vercel Serverless):', mqttErr.message);
+      console.warn('⚠️ MQTT Publish skipped/timeout:', mqttErr.message);
     }
 
     res.json({ 
@@ -134,10 +130,8 @@ app.post('/api/feed', async (req, res) => {
 // 🛑 สั่งหยุดฉุกเฉิน (Emergency Stop Command)
 app.post('/api/stop', async (req, res) => {
   try {
-    const { deviceId } = req.body;
-    if (!deviceId) return res.status(400).json({ error: 'Missing deviceId parameter' });
+    const deviceId = req.body.deviceId || req.headers['x-device-id'] || 'device123';
 
-    // เคลียร์คำสั่งใน Firebase
     if (admin.apps.length) {
       try {
         const db = admin.database();
@@ -147,7 +141,6 @@ app.post('/api/stop', async (req, res) => {
       }
     }
 
-    // พยายามส่ง MQTT หยุดฉุกเฉิน
     try {
       const topic = `fishfeeder/${deviceId}/cmd/stop`;
       const payload = JSON.stringify({ action: 'EMERGENCY_STOP', timestamp: Math.floor(Date.now() / 1000) });
@@ -163,9 +156,6 @@ app.post('/api/stop', async (req, res) => {
   }
 });
 
-// ----------------------------------------------------
-// 4. Server Start (สำหรับ Local Test)
-// ----------------------------------------------------
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
