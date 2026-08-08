@@ -207,4 +207,26 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+app.post('/api/save-wifi', async (req, res) => {
+    const { ssid, pass } = req.query;
+    const deviceId = req.headers['x-device-id'] || 'device123';
+
+    if (!ssid) {
+        return res.status(400).json({ success: false, message: 'กรุณาระบุ SSID' });
+    }
+
+    try {
+        // บันทึกคำสั่ง Wi-Fi ลง Firebase
+        await db.ref(`devices/${deviceId}/wifi_config`).set({
+            ssid: ssid,
+            pass: pass,
+            updated_at: Date.now()
+        });
+
+        return res.json({ success: true, message: 'บันทึกข้อมูล Wi-Fi ลงระบบเรียบร้อย' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 module.exports = app;

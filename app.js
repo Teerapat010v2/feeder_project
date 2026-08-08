@@ -912,16 +912,27 @@ document.addEventListener("DOMContentLoaded", () => {
             connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                const response = await fetch(`http://192.168.4.1/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
-                    method: "GET"
+                // ส่งผ่าน API ของ Vercel (HTTPS) เพื่อป้องกันเบราว์เซอร์บล็อก
+                const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
                 });
+            
                 const resData = await response.json();
 
                 if (resData.success) {
-                    alert("✅ บันทึกเรียบร้อย! ESP32 กำลังรีบูตเพื่อเชื่อมต่อ Wi-Fi บ้าน");
+                    alert("✅ ส่งข้อมูลสำเร็จ! ESP32 กำลังเชื่อมต่อ Wi-Fi บ้าน");
+                } else {
+                    alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
                 }
             } catch (err) {
-                alert("❌ บันทึกไม่สำเร็จ ตรวจสอบว่าเชื่อมต่อกับ ESP32 อยู่หรือไม่");
+                // หากยิง API ไม่ผ่าน ให้ fallback ไปลองส่งตรงอีกรอบ
+                try {
+                    await fetch(`http://192.168.4.1/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { mode: 'no-cors' });
+                    alert("✅ ส่งคำสั่งไปยัง ESP32 เรียบร้อยแล้ว!");
+                } catch (e) {
+                    alert("❌ ติดต่อ ESP32 ไม่ได้! กรุณาตรวจสอบว่าเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' อยู่หรือไม่");
+                }
             } finally {
                 connectWifiBtn.disabled = false;
                 connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
