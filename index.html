@@ -108,22 +108,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- ⏰ ข้อมูลเวลาให้อาหาร Real-time -->
-        <div class="card">
-            <div class="card-header-title">ข้อมูลเวลาให้อาหาร</div>
-            <div class="time-grid">
-                <div class="time-item">
-                    <span class="time-label">ให้อาหารล่าสุด</span>
-                    <span id="lastFeedTime" class="time-value">--:-- น.</span>
-                </div>
-                <div class="time-item">
-                    <span class="time-label">ครั้งถัดไป (Auto)</span>
-                    <span id="nextFeedTime" class="time-value green">--:-- น.</span>
-                </div>
-            </div>
-        </div>
-
         <!-- 🎚️ สวิตช์สไลด์สลับโหมด (Auto / Manual) -->
         <div class="card compact-card">
             <div class="mode-toggle-wrapper">
@@ -148,6 +132,21 @@
                 <button id="stopBtn" class="btn-danger">หยุดฉุกเฉิน</button>
             </div>
         </div>
+        <!-- ⏰ ข้อมูลเวลาให้อาหาร Real-time -->
+        <div class="card">
+            <div class="card-header-title">ข้อมูลเวลาให้อาหาร</div>
+            <div class="time-grid">
+                <div class="time-item">
+                    <span class="time-label">ให้อาหารล่าสุด</span>
+                    <span id="lastFeedTime" class="time-value">--:-- น.</span>
+                </div>
+                <div class="time-item">
+                    <span class="time-label">ครั้งถัดไป (Auto)</span>
+                    <span id="nextFeedTime" class="time-value green">--:-- น.</span>
+                </div>
+            </div>
+        </div>
+        
     </main>
 
     <script src="/app.js"></script>
