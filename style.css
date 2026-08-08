@@ -1,7 +1,8 @@
 /* ==========================================
-   Fish Feeder IoT Dashboard - Clean Combined CSS
+   Fish Feeder IoT Dashboard - Organized Master CSS
    ========================================== */
 
+/* ---------- 1. ROOT VARIABLES ---------- */
 :root {
     --primary-color: #16a34a;       /* เขียวหลัก */
     --primary-hover: #15803d;       /* เขียวเข้ม */
@@ -22,6 +23,7 @@
     --transition: all 0.2s ease-in-out;
 }
 
+/* ---------- 2. GLOBAL RESET & BASE STYLES ---------- */
 * {
     margin: 0;
     padding: 0;
@@ -50,9 +52,7 @@ h1 {
     margin-bottom: 20px;
 }
 
-/* ========================
-   TOP NAVIGATION BAR
-   ======================== */
+/* ---------- 3. TOP NAVIGATION BAR ---------- */
 .top-bar {
     position: sticky;
     top: 0;
@@ -80,9 +80,7 @@ h1 {
     color: var(--text-main);
 }
 
-/* ========================
-   LOGO SIZES
-   ======================== */
+/* ---------- 4. LOGO SIZES ---------- */
 .top-logo {
     height: 28px !important;
     width: auto !important;
@@ -119,9 +117,20 @@ h1 {
     margin-bottom: 16px;
 }
 
-/* ========================
-   SIDEBAR DRAWER STYLES
-   ======================== */
+.header-brand-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.page-title-text {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+}
+
+/* ---------- 5. SIDEBAR DRAWER STYLES ---------- */
 .sidebar-overlay {
     position: fixed;
     top: 0;
@@ -198,9 +207,7 @@ h1 {
     font-weight: 700;
 }
 
-/* ========================
-   CARD STYLING
-   ======================== */
+/* ---------- 6. CARD STYLING ---------- */
 .card {
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
@@ -218,9 +225,7 @@ h1 {
     color: var(--text-main);
 }
 
-/* ========================
-   BUTTON STYLING
-   ======================== */
+/* ---------- 7. BUTTON STYLING ---------- */
 .btn, button {
     display: inline-flex;
     align-items: center;
@@ -305,9 +310,7 @@ h1 {
     box-shadow: var(--shadow-sm);
 }
 
-/* ========================
-   TOGGLE SWITCH STYLES
-   ======================== */
+/* ---------- 8. TOGGLE SWITCH STYLES ---------- */
 .mode-toggle-wrapper {
     display: flex;
     align-items: center;
@@ -376,9 +379,7 @@ input:checked + .slider:before {
     border-radius: 50%;
 }
 
-/* ========================
-   TANK & STATUS GRID STYLES
-   ======================== */
+/* ---------- 9. TANK & STATUS GRID STYLES ---------- */
 .tank-info {
     display: flex;
     justify-content: space-between;
@@ -453,9 +454,161 @@ input:checked + .slider:before {
     gap: 10px;
 }
 
-/* ========================
-   FORM ELEMENTS & LAYOUT
-   ======================== */
+/* Days Remaining Box */
+.days-remaining-box {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-main);
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+
+/* ---------- 10. LED INDICATORS ---------- */
+.led-status-wrapper {
+    display: flex;
+    justify-content: space-around;
+    padding: 6px 0;
+}
+
+.led-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.led-light {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background-color: #cbd5e1;
+    transition: all 0.3s ease;
+}
+
+.led-light.red.active {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+}
+
+.led-light.yellow.active {
+    background-color: #eab308;
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.8);
+}
+
+.led-light.green.active {
+    background-color: #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+}
+
+.led-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+/* ---------- 11. TOP HORIZONTAL WIDGETS & MINI CARDS ---------- */
+.dashboard-top-section {
+    margin-bottom: 16px;
+    width: 100%;
+}
+
+.top-status-widgets-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: center;
+}
+
+.top-right-widgets {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.mini-status-card {
+    padding: 10px 14px !important;
+    margin-bottom: 0 !important;
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+    height: 100% !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.mini-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+}
+
+/* Mini LED Wrapper */
+.led-status-wrapper.mini {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 2px;
+}
+
+.led-status-wrapper.mini .led-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.led-status-wrapper.mini .led-light {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.led-status-wrapper.mini .led-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-main);
+}
+
+/* Mini Status Grid */
+.status-grid.mini {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 6px;
+    padding-top: 2px;
+}
+
+.status-grid.mini .status-item {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    background: #f8fafc !important;
+    padding: 3px 6px !important;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.status-grid.mini .status-label {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.status-grid.mini .status-value-text {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ---------- 12. FORM ELEMENTS & LAYOUT ---------- */
 .input-group {
     margin-bottom: 16px;
     display: flex;
@@ -509,70 +662,9 @@ input:checked + .slider:before {
     text-align: center;
 }
 
-@media (min-width: 600px) {
-    .action-section {
-        flex-direction: row;
-    }
-}
-/* LED Indicators */
-.led-status-wrapper {
-    display: flex;
-    justify-content: space-around;
-    padding: 6px 0;
-}
-
-.led-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.led-light {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background-color: #cbd5e1; /* ปิดอยู่ (สีเทา) */
-    transition: all 0.3s ease;
-}
-
-.led-light.red.active {
-    background-color: #ef4444;
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
-}
-
-.led-light.yellow.active {
-    background-color: #eab308;
-    box-shadow: 0 0 8px rgba(234, 179, 8, 0.8);
-}
-
-.led-light.green.active {
-    background-color: #22c55e;
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
-}
-
-.led-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-muted);
-}
-
-/* Days Remaining Box */
-.days-remaining-box {
-    margin-top: 10px;
-    padding: 8px 12px;
-    background: #f8fafc;
-    border-radius: 8px;
-    font-size: 13px;
-    color: var(--text-main);
-    text-align: center;
-    border: 1px solid var(--border-color);
-}
-/* ==========================================
-   SCHEDULE DUAL COLUMN & TAB STYLES
-   ========================================== */
-
+/* ---------- 13. SCHEDULE LAYOUT ---------- */
 .schedule-page-container {
-    max-width: 1000px !important; /* ขยายความกว้างสำหรับหน้าจอกว้าง */
+    max-width: 1000px !important;
 }
 
 .mobile-tab-switch {
@@ -585,7 +677,6 @@ input:checked + .slider:before {
     gap: 16px;
 }
 
-/* ซ่อน/แสดงตามแท็บบน Mobile */
 .column-section {
     display: none;
 }
@@ -594,10 +685,44 @@ input:checked + .slider:before {
     display: block;
 }
 
-/* เมื่อหน้าจอกว้างขึ้น (Tablet/Desktop) ให้แบ่ง ซ้าย-ขวา 50:50 */
+/* ---------- 14. RESPONSIVE MEDIA QUERIES ---------- */
+
+/* Mobile Small Devices */
+@media (max-width: 480px) {
+    .status-grid.mini {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+    }
+    
+    .status-grid.mini .status-item {
+        justify-content: space-between;
+        padding: 4px 8px !important;
+    }
+}
+
+/* Small Screens / Tablet Vertical */
+@media (min-width: 600px) {
+    .action-section {
+        flex-direction: row;
+    }
+}
+
+/* Tablet / Desktop View */
 @media (min-width: 768px) {
+    .dashboard-top-section {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .top-right-widgets {
+        justify-content: flex-end;
+        max-width: 380px;
+    }
+
     .mobile-tab-switch {
-        display: none; /* ซ่อนปุ่มแท็บบนคอมพิวเตอร์ */
+        display: none;
     }
 
     .two-column-layout {
@@ -608,6 +733,6 @@ input:checked + .slider:before {
     }
 
     .column-section {
-        display: block !important; /* แสดงทั้ง 2 ฝั่งพร้อมกัน */
+        display: block !important;
     }
 }

@@ -45,39 +45,59 @@
 
     <!-- MAIN CONTAINER -->
     <main class="container">
-        <h1 class="page-title">
-            <img src="/image/logo-iot.png" alt="Fish Feeder" class="main-header-logo">
-            Fish Feeder Dashboard
-        </h1>
-
-        <!-- 💡 LED Realtime Status (🔴 Power, 🟡 AP Mode, 🟢 HiveMQ/Cloud) -->
-        <div class="card compact-card">
-            <div class="card-header-title">สถานะการทำงานระบบ (LED Indicator)</div>
-            <div class="led-status-wrapper">
-                <div class="led-item">
-                    <span id="ledPower" class="led-light red"></span>
-                    <span class="led-label">Power On</span>
+        
+        <!-- แถบแสดงสถานะด้านบนแบบแนวนอนคู่กัน (ไม่มี Title แล้ว) -->
+<div class="dashboard-top-section">
+    <div class="top-status-widgets-container">
+        
+        <!-- ฝั่งซ้าย: สถานะอุปกรณ์ -->
+        <div class="card mini-status-card">
+            <div class="mini-card-title">สถานะอุปกรณ์</div>
+            <div class="status-grid mini">
+                <div class="status-item">
+                    <span class="status-label">โหมด:</span>
+                    <span id="statusCurrentMode" class="status-value-text green">Auto</span>
                 </div>
-                <div class="led-item">
-                    <span id="ledAp" class="led-light yellow"></span>
-                    <span class="led-label">AP Mode</span>
+                <div class="status-item">
+                    <span class="status-label">มอเตอร์:</span>
+                    <span id="statusMotor" class="status-value-text gray">พร้อม</span>
                 </div>
-                <div class="led-item">
-                    <span id="ledMqtt" class="led-light green"></span>
-                    <span class="led-label">HiveMQ Ready</span>
+                <div class="status-item">
+                    <span class="status-label">ตาชั่ง:</span>
+                    <span id="statusSensor" class="status-value-text green">ปกติ</span>
                 </div>
             </div>
         </div>
 
+        <!-- 💡 ฝั่งขวา: LED Status -->
+        <div class="card mini-status-card">
+            <div class="mini-card-title">LED Status</div>
+            <div class="led-status-wrapper mini">
+                <div class="led-item">
+                    <span id="ledPower" class="led-light red"></span>
+                    <span class="led-label">Power</span>
+                </div>
+                <div class="led-item">
+                    <span id="ledAp" class="led-light yellow"></span>
+                    <span class="led-label">AP</span>
+                </div>
+                <div class="led-item">
+                    <span id="ledMqtt" class="led-light green"></span>
+                    <span class="led-label">HiveMQ</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
         <!-- 🪣 น้ำหนักอาหารจริงแบบ Real-time -->
         <div class="card">
             <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>ปริมาณอาหารคงเหลือในถัง</span>
+                <span>อาหารคงเหลือในถัง</span>
                 <span id="foodStatusBadge" class="status-badge gray">รอเชื่อมต่อ...</span>
             </div>
             <div class="tank-container">
                 <div class="tank-info" style="justify-content: center; padding: 12px 0;">
-                    <!-- แสดงน้ำหนักจริงเป็นตัวเลขใหญ่ ชัดเจน -->
                     <span id="tankWeightText" class="tank-weight" style="font-size: 40px; font-weight: 800; color: var(--primary-color);">0 g</span>
                 </div>
                 <div class="progress-bar-bg">
@@ -88,41 +108,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- ⏰ ข้อมูลเวลาให้อาหาร Real-time -->
-        <div class="card">
-            <div class="card-header-title">ข้อมูลเวลาให้อาหาร</div>
-            <div class="time-grid">
-                <div class="time-item">
-                    <span class="time-label">ให้อาหารล่าสุด</span>
-                    <span id="lastFeedTime" class="time-value">--:-- น.</span>
-                </div>
-                <div class="time-item">
-                    <span class="time-label">ครั้งถัดไป (Auto)</span>
-                    <span id="nextFeedTime" class="time-value green">--:-- น.</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- ⚡ สถานะอุปกรณ์ Real-time -->
-        <div class="card">
-            <div class="card-header-title">สถานะระบบและอุปกรณ์</div>
-            <div class="status-grid">
-                <div class="status-item">
-                    <span class="status-label">โหมดปัจจุบัน</span>
-                    <span id="statusCurrentMode" class="status-value-text green">Auto</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">สถานะมอเตอร์</span>
-                    <span id="statusMotor" class="status-value-text gray">พร้อมทำงาน</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-label">สถานะตาชั่ง</span>
-                    <span id="statusSensor" class="status-value-text green">ปกติ</span>
-                </div>
-            </div>
-        </div>
-
         <!-- 🎚️ สวิตช์สไลด์สลับโหมด (Auto / Manual) -->
         <div class="card compact-card">
             <div class="mode-toggle-wrapper">
@@ -147,6 +132,21 @@
                 <button id="stopBtn" class="btn-danger">หยุดฉุกเฉิน</button>
             </div>
         </div>
+        <!-- ⏰ ข้อมูลเวลาให้อาหาร Real-time -->
+        <div class="card">
+            <div class="card-header-title">ข้อมูลเวลาให้อาหาร</div>
+            <div class="time-grid">
+                <div class="time-item">
+                    <span class="time-label">ให้อาหารล่าสุด</span>
+                    <span id="lastFeedTime" class="time-value">--:-- น.</span>
+                </div>
+                <div class="time-item">
+                    <span class="time-label">ครั้งถัดไป (Auto)</span>
+                    <span id="nextFeedTime" class="time-value green">--:-- น.</span>
+                </div>
+            </div>
+        </div>
+        
     </main>
 
     <script src="/app.js"></script>
