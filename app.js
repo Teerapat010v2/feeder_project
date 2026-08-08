@@ -88,8 +88,9 @@ function clearAuthStorage() {
     localStorage.removeItem(AUTH_KEY);
 }
 
+// เปลี่ยน DEV01 เป็น device123
 function authHeaders() {
-    const auth = getAuth() || { deviceId: "DEV01", deviceCode: "1234" };
+    const auth = getAuth() || { deviceId: "device123", deviceCode: "1234" };
     return {
         "x-device-id": auth.deviceId,
         "x-device-code": auth.deviceCode
