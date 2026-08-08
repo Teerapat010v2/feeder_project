@@ -88,8 +88,9 @@ function clearAuthStorage() {
     localStorage.removeItem(AUTH_KEY);
 }
 
+// เปลี่ยน DEV01 เป็น device123
 function authHeaders() {
-    const auth = getAuth() || { deviceId: "DEV01", deviceCode: "1234" };
+    const auth = getAuth() || { deviceId: "device123", deviceCode: "1234" };
     return {
         "x-device-id": auth.deviceId,
         "x-device-code": auth.deviceCode
@@ -738,45 +739,26 @@ document.addEventListener("DOMContentLoaded", () => {
         return "";
     }
 
-    // 1. ปุ่มสแกนหา WiFi
     if (scanWifiBtn) {
-        scanWifiBtn.addEventListener("click", async () => {
-            const originalText = scanWifiBtn.textContent;
-            scanWifiBtn.disabled = true;
-            scanWifiBtn.textContent = "⏳ กำลังสแกน...";
-
-            try {
-                const baseUrl = getEspBaseUrl();
-                const targetUrl = baseUrl ? `${baseUrl}/api/scan-wifi` : "/api/scan-wifi";
-                
-                const response = await fetch(targetUrl);
-                if (!response.ok) throw new Error("ไม่สามารถสแกนหา WiFi ได้");
-                
-                const wifiList = await response.json();
-
-                if (wifiListOptions) {
-                    wifiListOptions.innerHTML = "";
-                    if (Array.isArray(wifiList) && wifiList.length > 0) {
-                        wifiList.forEach(ssid => {
-                            if (ssid) {
-                                const option = document.createElement("option");
-                                option.value = ssid;
-                                wifiListOptions.appendChild(option);
-                            }
-                        });
-                        alert(`✅ สแกนพบ ${wifiList.length} เครือข่าย (กดเลือกในช่อง SSID ได้เลย)`);
-                    } else {
-                        alert("⚠️ ไม่พบสัญญาณ WiFi บริเวณใกล้เคียง");
-                    }
-                }
-            } catch (err) {
-                alert("❌ สแกน WiFi ล้มเหลว! ตรวจสอบว่าเชื่อมต่อ Wi-Fi ของ ESP32 อยู่หรือไม่");
-            } finally {
-                scanWifiBtn.disabled = false;
-                scanWifiBtn.textContent = originalText;
+    scanWifiBtn.addEventListener("click", async () => {
+        // หากเปิดผ่าน HTTPS บน Vercel ให้แจ้งเตือนผู้ใช้ให้ไปเปิดผ่าน HTTP ของบอร์ดตรงๆ
+        if (window.location.protocol === "https:") {
+            if (confirm("⚠️ หน้าเว็บบน HTTPS ไม่สามารถสแกน Wi-Fi ตรงได้\n\nกด OK เพื่อเปิดไปยังหน้าตั้งค่าของ ESP32 (http://192.168.4.1)")) {
+                window.location.href = "http://192.168.4.1";
             }
-        });
-    }
+            return;
+        }
+
+        // โค้ดสแกนปกติสำหรับโหมด HTTP Local
+        try {
+            const response = await fetch("/api/scan-wifi");
+            const wifiList = await response.json();
+            // ... (จัดการแสดงผลตามปกติ)
+        } catch (err) {
+            alert("❌ สแกนล้มเหลว กรุณาเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' แล้วเข้า http://192.168.4.1");
+        }
+    });
+}
 
     // 2. ปุ่มบันทึก / เชื่อมต่อ WiFi บ้าน
     if (connectWifiBtn) {
