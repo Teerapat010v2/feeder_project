@@ -140,13 +140,13 @@ function updateRealtimeWeightUI(realWeightGrams, dailyUsageValue = 100) {
     if (foodStatusBadge) {
         if (daysRemaining < 3) {
             foodStatusBadge.className = "status-badge red";
-            foodStatusBadge.innerText = "🔴 วิกฤต (< 3 วัน)";
+            foodStatusBadge.innerText = "🔴 เติมอาหาร (น้อยกว่า 3 วัน)";
         } else if (daysRemaining < 7) {
             foodStatusBadge.className = "status-badge yellow";
-            foodStatusBadge.innerText = "🟡 เตือน (< 7 วัน)";
+            foodStatusBadge.innerText = "🟡 อาหารเหลือน้อย (น้อยกว่า 7 วัน)";
         } else {
             foodStatusBadge.className = "status-badge green";
-            foodStatusBadge.innerText = "🟢 ปกติ (> 7 วัน)";
+            foodStatusBadge.innerText = "🟢 อาหารเพียงพอ (มากกว่า 7 วัน)";
         }
     }
 }
