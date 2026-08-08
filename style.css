@@ -736,3 +736,38 @@ input:checked + .slider:before {
         display: block !important;
     }
 }
+
+/* ==========================================
+   TOP BAR STATUS BADGE STYLES
+   ========================================== */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    transition: all 0.3s ease;
+}
+
+/* สถานะ Online (สีเขียว) */
+.status-badge.online {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #86efac;
+}
+
+/* สถานะ Local Mode (สีฟ้า) */
+.status-badge.local {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border: 1px solid #93c5fd;
+}
+
+/* สถานะ Offline (สีแดง) */
+.status-badge.offline {
+    background-color: #fee2e2;
+    color: #b91c1c;
+    border: 1px solid #fca5a5;
+}

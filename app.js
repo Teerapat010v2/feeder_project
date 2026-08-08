@@ -223,29 +223,60 @@ async function loadSchedule() {
     try { renderSchedule(await getJSON("/api/schedule")); } catch (e) { console.warn("Load schedule error:", e.message); }
 }
 
-function updateStatus(data) {
+// =====================================
+// REALTIME TOP-BAR STATUS CONTROL
+// =====================================
+
+// ฟังก์ชันอัปเดตป้ายสถานะแท็บด้านบน
+function updateConnectionStatusUI(isOnline = false) {
     const connStatus = document.getElementById("connectionStatus");
-    if (connStatus) {
-        connStatus.className = `status-badge ${data.online ? 'online' : 'offline'}`;
-        connStatus.innerText = data.online ? "● Online" : "● Offline";
+    if (!connStatus) return;
+
+    // เช็คโหมดการควบคุมปัจจุบัน (cloud หรือ local)
+    const currentControlMode = localStorage.getItem("fishfeeder_mode") || "cloud";
+
+    if (currentControlMode === "local") {
+        // 1. กรณีใช้งาน Local Mode
+        connStatus.className = "status-badge local";
+        connStatus.innerText = "● Local";
+    } else if (isOnline) {
+        // 2. กรณีเครื่องต่อ Wi-Fi / Cloud Online
+        connStatus.className = "status-badge online";
+        connStatus.innerText = "● Online";
+    } else {
+        // 3. กรณีเครื่องปิด / ถอดปลั๊ก / เน็ตหลุด
+        connStatus.className = "status-badge offline";
+        connStatus.innerText = "● Offline";
     }
-
-    if (dailyUsage && data.dailyUsage && document.activeElement !== dailyUsage) {
-        dailyUsage.value = data.dailyUsage;
-    }
-
-    const currentWeight = data.weight || 0;
-    const dailyUsageValue = Number(dailyUsage?.value || data.dailyUsage || 100);
-
-    if (lastSeen && data.lastSeen) {
-        lastSeen.innerHTML = data.lastSeen._seconds
-            ? new Date(data.lastSeen._seconds * 1000).toLocaleString("th-TH")
-            : new Date(data.lastSeen).toLocaleString("th-TH");
-    }
-
-    updateRealtimeWeightUI(currentWeight, dailyUsageValue);
-    updateSystemLeds(true, data.isApMode || false, data.online || false);
 }
+
+// อัปเดตฟังก์ชัน updateStatus ให้เรียกใช้การเปลี่ยนสถานะ
+function updateStatus(data) {
+    const isOnline = data && data.online === true;
+    updateConnectionStatusUI(isOnline);
+
+    const currentWeight = data?.weight || 0;
+    const usageVal = Number(data?.dailyUsage || 100);
+    if (typeof updateRealtimeWeightUI === "function") {
+        updateRealtimeWeightUI(currentWeight, usageVal);
+    }
+}
+
+// เพิ่มการรับฟัง Event เมื่อมีการสลับโหมด Cloud / Local
+document.addEventListener("DOMContentLoaded", () => {
+    const btnCloud = document.getElementById("btn-cloud") || document.getElementById("btnCloud");
+    const btnLocal = document.getElementById("btn-local") || document.getElementById("btnLocal");
+
+    btnCloud?.addEventListener("click", () => {
+        localStorage.setItem("fishfeeder_mode", "cloud");
+        loadStatus(); // โหลดสถานะใหม่ทันที
+    });
+
+    btnLocal?.addEventListener("click", () => {
+        localStorage.setItem("fishfeeder_mode", "local");
+        updateConnectionStatusUI(false); // สลับเป็น Local ทันที
+    });
+});
 
 function renderAlerts(alerts) {
     if (!alertList) return;
