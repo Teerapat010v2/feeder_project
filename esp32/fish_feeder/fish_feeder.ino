@@ -496,3 +496,37 @@ void publishStatus(String state, String msg) {
     }
   }
 }
+
+// 🟢 สแกนหา Wi-Fi บริเวณใกล้เคียงแล้วส่งกลับเป็น JSON
+void handleScanWifi() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  int n = WiFi.scanNetworks();
+  StaticJsonDocument<512> doc;
+  JsonArray array = doc.to<JsonArray>();
+
+  for (int i = 0; i < n; ++i) {
+    array.add(WiFi.SSID(i));
+  }
+
+  String json;
+  serializeJson(doc, json);
+  server.send(200, "application/json", json);
+}
+
+// 🟢 บันทึก SSID/Pass แล้วสั่งเชื่อมต่อ Wi-Fi บ้าน
+void handleSaveWifi() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String ssid = server.hasArg("ssid") ? server.arg("ssid") : "";
+  String pass = server.hasArg("pass") ? server.arg("pass") : "";
+
+  if (ssid.length() > 0) {
+    server.send(200, "application/json", "{\"success\":true,\"message\":\"กำลังบันทึกและเชื่อมต่อ Wi-Fi...\"}");
+    delay(1000);
+    
+    // บันทึกเข้า WiFiManager และสั่งเชื่อมต่อ
+    WiFi.begin(ssid.c_str(), pass.c_str());
+    ESP.restart();
+  } else {
+    server.send(400, "application/json", "{\"success\":false,\"message\":\"กรุณาระบุชื่อ SSID\"}");
+  }
+}

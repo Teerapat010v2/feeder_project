@@ -816,3 +816,69 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+    const scanWifiBtn = document.getElementById("scanWifiBtn");
+    const connectWifiBtn = document.getElementById("connectWifiBtn");
+    const homeSsidInput = document.getElementById("homeSsidInput");
+    const homePasswordInput = document.getElementById("homePasswordInput");
+    const wifiListOptions = document.getElementById("wifiListOptions");
+
+    // 1. กดปุ่มสแกนหา WiFi จากหน้านี้
+    if (scanWifiBtn) {
+        scanWifiBtn.addEventListener("click", async () => {
+            scanWifiBtn.disabled = true;
+            scanWifiBtn.textContent = "⏳ กำลังสแกน...";
+
+            try {
+                // ยิงไปหา ESP32 (โหมด AP 192.168.4.1 หรือ IP ทั่วไป)
+                const res = await fetch("http://192.168.4.1/api/scan-wifi");
+                const wifiList = await res.json();
+
+                if (wifiListOptions) {
+                    wifiListOptions.innerHTML = "";
+                    wifiList.forEach(ssid => {
+                        if (ssid) {
+                            const opt = document.createElement("option");
+                            opt.value = ssid;
+                            wifiListOptions.appendChild(opt);
+                        }
+                    });
+                }
+                alert(`✅ สแกนพบ ${wifiList.length} เครือข่าย (กดเลือกในช่อง SSID ได้เลย)`);
+            } catch (err) {
+                alert("❌ สแกนล้มเหลว! ตรวจสอบว่าเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' อยู่หรือไม่");
+            } finally {
+                scanWifiBtn.disabled = false;
+                scanWifiBtn.textContent = "สแกนหา WiFi";
+            }
+        });
+    }
+
+    // 2. กดปุ่มบันทึก / เชื่อมต่อ จากหน้านี้
+    if (connectWifiBtn) {
+        connectWifiBtn.addEventListener("click", async () => {
+            const ssid = homeSsidInput?.value.trim();
+            const pass = homePasswordInput?.value.trim() || "";
+
+            if (!ssid) return alert("กรุณาระบุชื่อ SSID Wi-Fi บ้าน");
+
+            connectWifiBtn.disabled = true;
+            connectWifiBtn.textContent = "⏳ กำลังเชื่อมต่อ...";
+
+            try {
+                const res = await fetch(`http://192.168.4.1/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`);
+                const data = await res.json();
+
+                if (data.success) {
+                    alert("✅ ส่งข้อมูลสำเร็จ! ESP32 กำลังรีบูตเพื่อเชื่อมต่อ Wi-Fi บ้านของคุณ");
+                }
+            } catch (err) {
+                alert("❌ บันทึกไม่สำเร็จ! ตรวจสอบการเชื่อมต่อกับ ESP32");
+            } finally {
+                connectWifiBtn.disabled = false;
+                connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
+            }
+        });
+    }
+});
