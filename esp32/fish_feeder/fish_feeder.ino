@@ -51,7 +51,7 @@ String pubWeightTopic = "fishfeeder/" + String(DEVICE_ID) + "/weight";
 
 // Timers & State Variables
 unsigned long lastWeightReport = 0;
-const long reportInterval = 2000; // 🟢 รายงานค่าน้ำหนักทุก 2 วินาที
+const long reportInterval = 2000; // 🟢 ปรับรายงานค่าน้ำหนักเป็นทุก 2 วินาที (Real-time)
 unsigned long lastFbCheck = 0;
 
 bool isFeeding = false;
@@ -72,26 +72,12 @@ void checkFirebaseCommands();
 void checkWifiConfigFromFirebase();
 void handleLocalFeed();
 void handleLocalStop();
-void handleScanWifi();
-void handleOptions();
-void sendCORSHeaders();
 void setRGB(bool r, bool g, bool b);
 
 void setRGB(bool r, bool g, bool b) {
   digitalWrite(LED_R, r ? HIGH : LOW);
   digitalWrite(LED_G, g ? HIGH : LOW);
   digitalWrite(LED_B, b ? HIGH : LOW);
-}
-
-void sendCORSHeaders() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  server.sendHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  server.sendHeader("Access-Control-Allow-Headers", "Content-Type, x-device-id, x-device-code");
-}
-
-void handleOptions() {
-  sendCORSHeaders();
-  server.send(204);
 }
 
 void setup() {
@@ -125,14 +111,8 @@ void setup() {
     }
   }
 
-  // WebServer Handlers
-  server.on("/local-feed", HTTP_OPTIONS, handleOptions);
-  server.on("/local-feed", HTTP_GET, handleLocalFeed);
-  server.on("/local-stop", HTTP_OPTIONS, handleOptions);
-  server.on("/local-stop", HTTP_GET, handleLocalStop);
-  server.on("/api/scan-wifi", HTTP_OPTIONS, handleOptions);
-  server.on("/api/scan-wifi", HTTP_GET, handleScanWifi);
-
+  server.on("/local-feed", handleLocalFeed);
+  server.on("/local-stop", handleLocalStop);
   server.begin();
 
   espClient.setInsecure();
@@ -162,9 +142,9 @@ void loop() {
     }
   }
 
-  server.handleClient();
-
   if (isWifiConnected) {
+    server.handleClient();
+
     if (!client.connected()) {
       reconnectMQTT();
     } else {
@@ -172,7 +152,9 @@ void loop() {
     }
 
     checkFirebaseCommands();
-    checkWifiConfigFromFirebase();
+    checkWifiConfigFromFirebase(); // 🟢 ตรวจการตั้งค่า Wi-Fi ใหม่จาก Firebase
+  } else {
+    server.handleClient();
   }
 
   if (isFeeding) {
@@ -210,7 +192,7 @@ void setupWiFi() {
 }
 
 void handleLocalFeed() {
-  sendCORSHeaders();
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   int amount = server.hasArg("amount") ? server.arg("amount").toInt() : 10;
   if (amount <= 0) amount = 10;
   triggerFeeding(amount);
@@ -218,22 +200,9 @@ void handleLocalFeed() {
 }
 
 void handleLocalStop() {
-  sendCORSHeaders();
+  server.sendHeader("Access-Control-Allow-Origin", "*");
   emergencyStop();
   server.send(200, "application/json", "{\"success\":true,\"message\":\"Local stop executed\"}");
-}
-
-void handleScanWifi() {
-  sendCORSHeaders();
-  int n = WiFi.scanNetworks();
-  StaticJsonDocument<512> doc;
-  JsonArray array = doc.to<JsonArray>();
-  for (int i = 0; i < n; ++i) {
-    array.add(WiFi.SSID(i));
-  }
-  String response;
-  serializeJson(doc, response);
-  server.send(200, "application/json", response);
 }
 
 void reconnectMQTT() {
@@ -258,7 +227,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   if (deserializeJson(doc, payload, length)) return;
 
   if (incomingTopic == subFeedTopic) {
-    int amount = doc["amount"] | doc["amountGrams"] | doc["grams"] | 10;
+    int amount = doc["amount"] | doc["amountGrams"] | 10;
     triggerFeeding(amount);
   } else if (incomingTopic == subStopTopic) {
     emergencyStop();
@@ -302,7 +271,6 @@ void readAndReportWeight(bool isWifiConnected) {
       if (client.connected()) {
         StaticJsonDocument<128> doc;
         doc["weight_grams"] = weight;
-        doc["weight"] = weight;
         doc["timestamp"] = millis() / 1000;
         char buffer[128];
         serializeJson(doc, buffer);
@@ -312,13 +280,13 @@ void readAndReportWeight(bool isWifiConnected) {
       if (Firebase.ready()) {
         String basePath = "/devices/" + String(DEVICE_ID);
         Firebase.setFloat(fbdo, basePath + "/current_weight", weight);
-        Firebase.setFloat(fbdo, basePath + "/weight", weight);
         Firebase.setInt(fbdo, basePath + "/last_updated", millis() / 1000);
       }
     }
   }
 }
 
+// 📩 เช็กคำสั่งจาก Firebase
 void checkFirebaseCommands() {
   if (isFeeding) return;
 
@@ -341,6 +309,7 @@ void checkFirebaseCommands() {
   }
 }
 
+// 🟢 เช็กค่าตั้งค่า Wi-Fi บ้านใหม่จาก Firebase
 void checkWifiConfigFromFirebase() {
   if (Firebase.ready()) {
     String path = "/devices/" + String(DEVICE_ID) + "/wifi_config";
@@ -352,7 +321,7 @@ void checkWifiConfigFromFirebase() {
           newPass = fbdo.stringData();
         }
         
-        Firebase.deleteNode(fbdo, path);
+        Firebase.deleteNode(fbdo, path); // ล้างค่าหลังอ่านเสร็จ
         
         WiFi.begin(newSsid.c_str(), newPass.c_str());
         ESP.restart();

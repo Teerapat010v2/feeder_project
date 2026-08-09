@@ -2,67 +2,76 @@
 // Fish Feeder IoT - Integrated App Script
 // =====================================
 
+// ---------- DOM Elements ----------
+const statusText = document.getElementById("statusText");
+const lastSeen = document.getElementById("lastSeen");
+const weight = document.getElementById("weight");
+const daysRemainingText = document.getElementById("daysRemainingText");
+const dailyUsage = document.getElementById("dailyUsage");
+const saveUsageBtn = document.getElementById("saveUsageBtn");
+
+const alertList = document.getElementById("alertList");
+const scheduleList = document.getElementById("scheduleList");
+
+const feedBtn = document.getElementById("feedBtn");
+const stopBtn = document.getElementById("stopBtn");
+const feedAmount = document.getElementById("feedAmount");
+
+const scheduleTime = document.getElementById("scheduleTime");
+const addSchedule = document.getElementById("addSchedule");
+const clearHistory = document.getElementById("clearHistory");
+
+const authModal = document.getElementById("authModal");
+const authForm = document.getElementById("authForm");
+const authDeviceId = document.getElementById("authDeviceId");
+const authDeviceCode = document.getElementById("authDeviceCode");
+const authError = document.getElementById("authError");
+const logoutBtn = document.getElementById("logoutBtn");
+
+// ---------- Dual Mode DOM ----------
+const btnCloud = document.getElementById("btn-cloud") || document.getElementById("btnCloud");
+const btnLocal = document.getElementById("btn-local") || document.getElementById("btnLocal");
+const localIpGroup = document.getElementById("local-ip-group") || document.getElementById("localIpGroup");
+const espIpInput = document.getElementById("esp-ip") || document.getElementById("espIp");
+
+// =====================================
+// DUAL MODE & LOCAL STORAGE SETTINGS
+// =====================================
 const AUTH_KEY = "fishfeeder_auth";
 const MODE_KEY = "fishfeeder_mode";
 const LOCAL_IP_KEY = "fishfeeder_local_ip";
 const FEED_AMOUNT_KEY = "fishfeeder_feed_amount";
-const MAX_CAPACITY_GRAMS = 1000;
 
 let currentMode = localStorage.getItem(MODE_KEY) || "cloud";
-let schedules = [];
-let rawHistoryData = [];
-let socket = null;
-
-// ---------- DOM Elements ----------
-let elements = {};
-
-function initDOMElements() {
-    elements = {
-        statusText: document.getElementById("statusText"),
-        lastSeen: document.getElementById("lastSeen"),
-        weight: document.getElementById("weight"),
-        daysRemainingText: document.getElementById("daysRemainingText"),
-        dailyUsage: document.getElementById("dailyUsage"),
-        saveUsageBtn: document.getElementById("saveUsageBtn"),
-        alertList: document.getElementById("alertList"),
-        scheduleList: document.getElementById("scheduleList"),
-        feedBtn: document.getElementById("feedBtn"),
-        stopBtn: document.getElementById("stopBtn"),
-        feedAmount: document.getElementById("feedAmount"),
-        scheduleTime: document.getElementById("scheduleTime"),
-        addSchedule: document.getElementById("addSchedule"),
-        clearHistory: document.getElementById("clearHistory"),
-        authModal: document.getElementById("authModal"),
-        authForm: document.getElementById("authForm"),
-        authDeviceId: document.getElementById("authDeviceId"),
-        authDeviceCode: document.getElementById("authDeviceCode"),
-        authError: document.getElementById("authError"),
-        logoutBtn: document.getElementById("logoutBtn"),
-        btnCloud: document.getElementById("btn-cloud") || document.getElementById("btnCloud"),
-        btnLocal: document.getElementById("btn-local") || document.getElementById("btnLocal"),
-        localIpGroup: document.getElementById("local-ip-group") || document.getElementById("localIpGroup"),
-        espIpInput: document.getElementById("esp-ip") || document.getElementById("espIp")
-    };
-}
+const MAX_CAPACITY_GRAMS = 1000;
 
 function setControlMode(mode) {
     currentMode = mode;
     localStorage.setItem(MODE_KEY, mode);
 
-    if (elements.btnCloud && elements.btnLocal) {
+    if (btnCloud && btnLocal) {
         if (mode === "cloud") {
-            elements.btnCloud.classList.add("active");
-            elements.btnLocal.classList.remove("active");
-            if (elements.localIpGroup) elements.localIpGroup.style.display = "none";
+            btnCloud.classList.add("active");
+            btnLocal.classList.remove("active");
+            if (localIpGroup) localIpGroup.style.display = "none";
         } else {
-            elements.btnLocal.classList.add("active");
-            elements.btnCloud.classList.remove("active");
-            if (elements.localIpGroup) elements.localIpGroup.style.display = "block";
+            btnLocal.classList.add("active");
+            btnCloud.classList.remove("active");
+            if (localIpGroup) localIpGroup.style.display = "block";
         }
     }
-    updateConnectionStatusUI();
 }
 
+if (espIpInput) {
+    espIpInput.value = localStorage.getItem(LOCAL_IP_KEY) || "192.168.1.150";
+    espIpInput.addEventListener("change", () => {
+        localStorage.setItem(LOCAL_IP_KEY, espIpInput.value.trim());
+    });
+}
+
+// =====================================
+// DEVICE AUTH
+// =====================================
 function getAuth() {
     try {
         return JSON.parse(localStorage.getItem(AUTH_KEY) || "null");
@@ -79,6 +88,7 @@ function clearAuthStorage() {
     localStorage.removeItem(AUTH_KEY);
 }
 
+// เปลี่ยน DEV01 เป็น device123
 function authHeaders() {
     const auth = getAuth() || { deviceId: "device123", deviceCode: "1234" };
     return {
@@ -88,14 +98,17 @@ function authHeaders() {
 }
 
 function showAuthModal(message) {
-    if (elements.authError) elements.authError.textContent = message || "";
-    if (elements.authModal) elements.authModal.style.display = "flex";
+    if (authError) authError.textContent = message || "";
+    if (authModal) authModal.style.display = "flex";
 }
 
 function hideAuthModal() {
-    if (elements.authModal) elements.authModal.style.display = "none";
+    if (authModal) authModal.style.display = "none";
 }
 
+// =====================================
+// HELPER & REALTIME CALCULATIONS
+// =====================================
 function escapeHtml(str) {
     if (str === undefined || str === null) return "";
     return String(str)
@@ -112,12 +125,13 @@ function updateRealtimeWeightUI(realWeightGrams, dailyUsageValue = 100) {
     const daysRemaining = (currentWeight / usage).toFixed(1);
 
     const tankWeightText = document.getElementById("tankWeightText");
+    const daysText = document.getElementById("daysRemainingText");
     const progressBar = document.getElementById("tankProgressBar");
     const foodStatusBadge = document.getElementById("foodStatusBadge");
 
     if (tankWeightText) tankWeightText.innerText = `${currentWeight} g`;
-    if (elements.weight) elements.weight.innerText = currentWeight;
-    if (elements.daysRemainingText) elements.daysRemainingText.innerText = `${daysRemaining} วัน`;
+    if (weight) weight.innerText = currentWeight;
+    if (daysText) daysText.innerText = `${daysRemaining} วัน`;
 
     if (progressBar) {
         const fillPercent = Math.min((currentWeight / MAX_CAPACITY_GRAMS) * 100, 100);
@@ -127,33 +141,30 @@ function updateRealtimeWeightUI(realWeightGrams, dailyUsageValue = 100) {
     if (foodStatusBadge) {
         if (daysRemaining < 3) {
             foodStatusBadge.className = "status-badge red";
-            foodStatusBadge.innerText = "🔴 เติมอาหาร";
+            foodStatusBadge.innerText = "🔴 เติมอาหาร ";
         } else if (daysRemaining < 7) {
             foodStatusBadge.className = "status-badge yellow";
-            foodStatusBadge.innerText = "🟡 อาหารเหลือน้อย";
+            foodStatusBadge.innerText = "🟡 อาหารเหลือน้อย ";
         } else {
             foodStatusBadge.className = "status-badge green";
-            foodStatusBadge.innerText = "🟢 อาหารเพียงพอ";
+            foodStatusBadge.innerText = "🟢 อาหารเพียงพอ ";
         }
     }
 }
 
-function updateConnectionStatusUI(isOnline = false) {
-    const connStatus = document.getElementById("connectionStatus");
-    if (!connStatus) return;
+function updateSystemLeds(isPowerOn = true, isApMode = false, isMqttReady = true) {
+    const ledPower = document.getElementById("ledPower");
+    const ledAp = document.getElementById("ledAp");
+    const ledMqtt = document.getElementById("ledMqtt");
 
-    if (currentMode === "local") {
-        connStatus.className = "status-badge local";
-        connStatus.innerText = "● Local";
-    } else if (isOnline) {
-        connStatus.className = "status-badge online";
-        connStatus.innerText = "● Online";
-    } else {
-        connStatus.className = "status-badge offline";
-        connStatus.innerText = "● Offline";
-    }
+    if (ledPower) ledPower.classList.toggle("active", isPowerOn);
+    if (ledAp) ledAp.classList.toggle("active", isApMode);
+    if (ledMqtt) ledMqtt.classList.toggle("active", isMqttReady);
 }
 
+// =====================================
+// API CALLS
+// =====================================
 async function getJSON(url) {
     const res = await fetch(url, { headers: { ...authHeaders() } });
     if (res.status === 401) {
@@ -188,15 +199,9 @@ async function deleteAPI(url) {
     return await res.json();
 }
 
-function updateStatus(data) {
-    const isOnline = data && data.online === true;
-    updateConnectionStatusUI(isOnline);
-
-    const currentWeight = data?.weight ?? data?.current_weight ?? 0;
-    const usageVal = Number(data?.dailyUsage || elements.dailyUsage?.value || 100);
-    updateRealtimeWeightUI(currentWeight, usageVal);
-}
-
+// =====================================
+// LOADERS & RENDERS
+// =====================================
 async function loadStatus() {
     try { updateStatus(await getJSON("/api/status")); } catch (e) { console.warn("Load status error:", e.message); }
 }
@@ -218,23 +223,80 @@ async function loadSchedule() {
     try { renderSchedule(await getJSON("/api/schedule")); } catch (e) { console.warn("Load schedule error:", e.message); }
 }
 
+// =====================================
+// REALTIME TOP-BAR STATUS CONTROL
+// =====================================
+
+// ฟังก์ชันอัปเดตป้ายสถานะแท็บด้านบน
+function updateConnectionStatusUI(isOnline = false) {
+    const connStatus = document.getElementById("connectionStatus");
+    if (!connStatus) return;
+
+    // เช็คโหมดการควบคุมปัจจุบัน (cloud หรือ local)
+    const currentControlMode = localStorage.getItem("fishfeeder_mode") || "cloud";
+
+    if (currentControlMode === "local") {
+        // 1. กรณีใช้งาน Local Mode
+        connStatus.className = "status-badge local";
+        connStatus.innerText = "● Local";
+    } else if (isOnline) {
+        // 2. กรณีเครื่องต่อ Wi-Fi / Cloud Online
+        connStatus.className = "status-badge online";
+        connStatus.innerText = "● Online";
+    } else {
+        // 3. กรณีเครื่องปิด / ถอดปลั๊ก / เน็ตหลุด
+        connStatus.className = "status-badge offline";
+        connStatus.innerText = "● Offline";
+    }
+}
+
+// อัปเดตฟังก์ชัน updateStatus ให้เรียกใช้การเปลี่ยนสถานะ
+function updateStatus(data) {
+    const isOnline = data && data.online === true;
+    updateConnectionStatusUI(isOnline);
+
+    const currentWeight = data?.weight || 0;
+    const usageVal = Number(data?.dailyUsage || 100);
+    if (typeof updateRealtimeWeightUI === "function") {
+        updateRealtimeWeightUI(currentWeight, usageVal);
+    }
+}
+
+// เพิ่มการรับฟัง Event เมื่อมีการสลับโหมด Cloud / Local
+document.addEventListener("DOMContentLoaded", () => {
+    const btnCloud = document.getElementById("btn-cloud") || document.getElementById("btnCloud");
+    const btnLocal = document.getElementById("btn-local") || document.getElementById("btnLocal");
+
+    btnCloud?.addEventListener("click", () => {
+        localStorage.setItem("fishfeeder_mode", "cloud");
+        loadStatus(); // โหลดสถานะใหม่ทันที
+    });
+
+    btnLocal?.addEventListener("click", () => {
+        localStorage.setItem("fishfeeder_mode", "local");
+        updateConnectionStatusUI(false); // สลับเป็น Local ทันที
+    });
+});
+
 function renderAlerts(alerts) {
-    if (!elements.alertList) return;
-    elements.alertList.innerHTML = "";
+    if (!alertList) return;
+    alertList.innerHTML = "";
     if (!Array.isArray(alerts)) return;
 
     alerts.forEach(alert => {
         const li = document.createElement("li");
         li.className = "list-group-item";
         li.innerHTML = `<strong>${escapeHtml((alert.level || "").toUpperCase())}</strong><br>${escapeHtml(alert.message)}`;
-        elements.alertList.appendChild(li);
+        alertList.appendChild(li);
     });
 }
 
+let schedules = [];
+
 function renderSchedule(data) {
-    if (!elements.scheduleList) return;
+    if (!scheduleList) return;
     schedules = Array.isArray(data) ? data : [];
-    elements.scheduleList.innerHTML = "";
+    scheduleList.innerHTML = "";
 
     schedules.forEach(item => {
         const li = document.createElement("li");
@@ -250,7 +312,7 @@ function renderSchedule(data) {
 
         li.appendChild(timeSpan);
         li.appendChild(btn);
-        elements.scheduleList.appendChild(li);
+        scheduleList.appendChild(li);
     });
 }
 
@@ -266,55 +328,86 @@ async function saveSchedule() {
     loadSchedule();
 }
 
+// =====================================
+// APP MAIN INIT & SOCKET LISTENERS
+// =====================================
+let socket = null;
+
 function startApp(auth) {
     setControlMode(currentMode);
 
     if (typeof io !== "undefined") {
         socket = io({ auth: { deviceId: auth.deviceId, deviceCode: auth.deviceCode } });
+
+        socket.on("connect", () => updateSystemLeds(true, false, true));
+        socket.on("connect_error", (err) => {
+            console.warn("Socket Error:", err.message);
+            updateSystemLeds(true, false, false);
+        });
+
         socket.on("status", updateStatus);
         socket.on("weight", (data) => {
-            const usageVal = Number(elements.dailyUsage?.value || 100);
+            const usageVal = Number(dailyUsage?.value || 100);
             updateRealtimeWeightUI(data.weight, usageVal);
+            updateSystemLeds(true, false, true);
         });
+
         socket.on("history", (data) => processHistoryData(data));
         socket.on("alerts", renderAlerts);
+        socket.on("alert", loadAlerts);
         socket.on("schedule", renderSchedule);
     }
 
-    elements.feedBtn?.addEventListener("click", async () => {
-        const grams = Number(elements.feedAmount?.value || 10);
+    if (btnCloud) btnCloud.addEventListener("click", () => setControlMode("cloud"));
+    if (btnLocal) btnLocal.addEventListener("click", () => setControlMode("local"));
+
+    saveUsageBtn?.addEventListener("click", async () => {
+        const usage = Number(dailyUsage?.value || 0);
+        if (usage <= 0) return alert("Daily usage must be greater than 0");
+        await postJSON("/api/usage", { dailyUsage: usage });
+        alert("Daily usage updated");
+    });
+
+    // ปุ่มกดสั่งให้อาหาร (ตรงตาม API /api/feed -> { grams })
+    feedBtn?.addEventListener("click", async () => {
+        const grams = Number(feedAmount?.value || 10);
         if (grams <= 0) return alert("กรุณาระบุปริมาณอาหารมากกว่า 0 กรัม");
 
-        elements.feedBtn.disabled = true;
-        elements.feedBtn.textContent = "⏳ กำลังส่งคำสั่ง...";
+        const originalText = feedBtn.textContent;
+        feedBtn.disabled = true;
+        feedBtn.textContent = "⏳ กำลังส่งคำสั่ง...";
 
         try {
             if (currentMode === "cloud") {
                 const result = await postJSON('/api/feed', { grams: grams });
                 alert(result && result.success ? "✅ [Cloud Mode] ส่งคำสั่งเรียบร้อย!" : `❌ ${result?.message || "ส่งไม่สำเร็จ"}`);
             } else {
-                const espIp = elements.espIpInput ? elements.espIpInput.value.trim() : "";
+                const espIp = espIpInput ? espIpInput.value.trim() : "";
                 if (!espIp) return alert("กรุณากรอก IP Address ของอุปกรณ์");
                 localStorage.setItem(LOCAL_IP_KEY, espIp);
 
-                const response = await fetch(`http://${espIp}/local-feed?amount=${grams}`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                const response = await fetch(`http://${espIp}/local-feed?amount=${grams}`, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
                 alert(response.ok ? "✅ [Local Mode] สั่งให้อาหารสำเร็จ!" : "❌ บอร์ดตอบกลับข้อผิดพลาด");
             }
         } catch (err) {
             alert(currentMode === "local" ? "❌ ติดต่อบอร์ดไม่ได้!" : "❌ เชื่อมต่อ Cloud API ล้มเหลว");
         } finally {
-            elements.feedBtn.disabled = false;
-            elements.feedBtn.textContent = "ให้อาหาร";
+            feedBtn.disabled = false;
+            feedBtn.textContent = originalText;
         }
     });
 
-    elements.stopBtn?.addEventListener("click", async () => {
+    stopBtn?.addEventListener("click", async () => {
         try {
             if (currentMode === "cloud") {
                 const result = await postJSON("/api/stop", {});
                 alert(result && result.success ? "🛑 ส่งคำสั่งหยุดแล้ว" : "❌ หยุดไม่สำเร็จ");
             } else {
-                const espIp = elements.espIpInput ? elements.espIpInput.value.trim() : "";
+                const espIp = espIpInput ? espIpInput.value.trim() : "";
                 if (!espIp) return alert("กรุณากรอก IP Address ของอุปกรณ์");
                 await fetch(`http://${espIp}/local-stop`);
                 alert("🛑 [Local Mode] ส่งคำสั่งหยุดแล้ว");
@@ -324,11 +417,190 @@ function startApp(auth) {
         }
     });
 
+    addSchedule?.addEventListener("click", () => {
+        if (!scheduleTime || !scheduleTime.value) return alert("Please select time");
+        schedules.push({ time: scheduleTime.value, enable: true });
+        saveSchedule();
+        scheduleTime.value = "";
+    });
+
+    clearHistory?.addEventListener("click", async () => {
+        if (confirm("คุณต้องการล้างประวัติการให้อาหารทั้งหมดใช่หรือไม่?")) {
+            await deleteAPI("/api/history");
+            loadHistory();
+        }
+    });
+
     loadStatus();
     loadHistory();
     loadAlerts();
     loadSchedule();
 }
+
+// =====================================
+// AUTH GATE & DOM CONTROLS
+// =====================================
+authForm?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const deviceId = authDeviceId?.value.trim();
+    const deviceCode = authDeviceCode?.value.trim();
+    if (!deviceId || !deviceCode) return showAuthModal("กรุณากรอกไอดีเครื่องและรหัส");
+
+    try {
+        const res = await fetch("/api/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-device-id": deviceId, "x-device-code": deviceCode },
+            body: JSON.stringify({})
+        });
+        if (res.ok) {
+            setAuth(deviceId, deviceCode);
+            hideAuthModal();
+            startApp({ deviceId, deviceCode });
+        } else {
+            showAuthModal("ไอดีเครื่องหรือรหัสไม่ถูกต้อง");
+        }
+    } catch {
+        showAuthModal("เชื่อมต่อ server ไม่ได้");
+    }
+});
+
+logoutBtn?.addEventListener("click", () => {
+    clearAuthStorage();
+    if (socket) socket.disconnect();
+    location.reload();
+});
+
+// ---------- DOM Ready UI Controls ----------
+document.addEventListener("DOMContentLoaded", () => {
+    const hamburgerBtn = document.getElementById("hamburgerBtn");
+    const closeSidebarBtn = document.getElementById("closeSidebarBtn");
+    const sidebarDrawer = document.getElementById("sidebarDrawer");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+
+    if (hamburgerBtn && sidebarDrawer && sidebarOverlay) {
+        const closeMenu = () => {
+            sidebarDrawer.classList.remove("active");
+            sidebarOverlay.classList.remove("active");
+        };
+
+        hamburgerBtn.addEventListener("click", () => {
+            sidebarDrawer.classList.add("active");
+            sidebarOverlay.classList.add("active");
+        });
+
+        if (closeSidebarBtn) closeSidebarBtn.addEventListener("click", closeMenu);
+        sidebarOverlay.addEventListener("click", closeMenu);
+    }
+
+    const modeToggle = document.getElementById("modeToggle");
+    const labelAuto = document.getElementById("label-auto");
+    const labelManual = document.getElementById("label-manual");
+    const statusCurrentMode = document.getElementById("statusCurrentMode");
+
+    function updateModeUI(isManual) {
+        if (isManual) {
+            labelManual?.classList.add("active");
+            labelAuto?.classList.remove("active");
+            if (statusCurrentMode) {
+                statusCurrentMode.innerText = "Manual";
+                statusCurrentMode.className = "status-value-text blue";
+            }
+            if (feedBtn) feedBtn.disabled = false;
+            if (feedAmount) feedAmount.disabled = false;
+        } else {
+            labelAuto?.classList.add("active");
+            labelManual?.classList.remove("active");
+            if (statusCurrentMode) {
+                statusCurrentMode.innerText = "Auto";
+                statusCurrentMode.className = "status-value-text green";
+            }
+            if (feedBtn) feedBtn.disabled = true;
+            if (feedAmount) feedAmount.disabled = true;
+        }
+    }
+
+    if (modeToggle) {
+        modeToggle.addEventListener("change", (e) => updateModeUI(e.target.checked));
+        modeToggle.checked = false;
+        updateModeUI(false);
+    }
+
+    const existingAuth = getAuth();
+    if (existingAuth || !authModal) {
+        hideAuthModal();
+        startApp(existingAuth || { deviceId: "DEV01", deviceCode: "1234" });
+    } else {
+        showAuthModal();
+    }
+});
+
+// =====================================
+// TAB NAVIGATION SWITCH LOGIC (schedule.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tabScheduleBtn = document.getElementById("tabScheduleBtn");
+    const tabWeightBtn = document.getElementById("tabWeightBtn");
+    const sectionSchedule = document.getElementById("section-schedule");
+    const sectionWeight = document.getElementById("section-weight");
+
+    if (tabScheduleBtn && tabWeightBtn) {
+        tabScheduleBtn.addEventListener("click", () => {
+            tabScheduleBtn.classList.add("active");
+            tabWeightBtn.classList.remove("active");
+
+            if (sectionSchedule) sectionSchedule.style.display = "block";
+            if (sectionWeight) sectionWeight.style.display = "none";
+        });
+
+        tabWeightBtn.addEventListener("click", () => {
+            tabWeightBtn.classList.add("active");
+            tabScheduleBtn.classList.remove("active");
+
+            if (sectionSchedule) sectionSchedule.style.display = "none";
+            if (sectionWeight) sectionWeight.style.display = "block";
+        });
+    }
+});
+
+// =====================================
+// SYNC FEED AMOUNT BETWEEN PAGES & USAGE
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const savedAmount = localStorage.getItem(FEED_AMOUNT_KEY) || "10";
+    
+    const feedAmountIndex = document.getElementById("feedAmount");
+    if (feedAmountIndex) feedAmountIndex.value = savedAmount;
+
+    const feedAmountSchedule = document.getElementById("feedAmountInput");
+    if (feedAmountSchedule) feedAmountSchedule.value = savedAmount;
+});
+
+async function handleSaveCalibrationSettings() {
+    const feedAmountVal = Number(document.getElementById("feedAmountInput")?.value || 10);
+
+    if (feedAmountVal <= 0) {
+        alert("กรุณากรอกปริมาณอาหารที่ใช้ต่อครั้งให้ถูกต้อง");
+        return;
+    }
+
+    localStorage.setItem(FEED_AMOUNT_KEY, feedAmountVal);
+
+    try {
+        await postJSON("/api/usage", { dailyUsage: feedAmountVal });
+        alert("บันทึกปริมาณอาหารต่อครั้งลง Firebase เรียบร้อย");
+    } catch (e) {
+        alert("บันทึกข้อมูลไม่สำเร็จ");
+    }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("saveCalibrationBtn")?.addEventListener("click", handleSaveCalibrationSettings);
+});
+
+// =====================================
+// HISTORY FILTER, SUMMARY & PRINT LOGIC (history.html)
+// =====================================
+let rawHistoryData = [];
 
 function processHistoryData(historyList) {
     rawHistoryData = Array.isArray(historyList) ? historyList : [];
@@ -365,6 +637,19 @@ function filterAndRenderHistory() {
         totalSummaryText.innerText = `${totalAmount.toLocaleString()} g`;
     }
 
+    const printDateText = document.getElementById("printDateRangeText");
+    if (printDateText) {
+        if (startDateVal && endDateVal) {
+            printDateText.innerText = `ข้อมูลช่วงวันที่: ${startDateVal} ถึง ${endDateVal}`;
+        } else if (startDateVal) {
+            printDateText.innerText = `ข้อมูลตั้งแต่วันที่: ${startDateVal}`;
+        } else if (endDateVal) {
+            printDateText.innerText = `ข้อมูลถึงวันที่: ${endDateVal}`;
+        } else {
+            printDateText.innerText = `ข้อมูลช่วงวันที่: ทั้งหมด`;
+        }
+    }
+
     renderHistoryTable(filtered);
 }
 
@@ -385,7 +670,7 @@ function renderHistoryTable(historyList) {
     }
 
     const currentAuth = getAuth();
-    const defaultDeviceId = currentAuth?.deviceId || "device123";
+    const defaultDeviceId = currentAuth?.deviceId || "DEV01";
 
     historyList.forEach(item => {
         const tr = document.createElement("tr");
@@ -410,99 +695,315 @@ function renderHistoryTable(historyList) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    initDOMElements();
+    document.getElementById("filterBtn")?.addEventListener("click", filterAndRenderHistory);
 
-    if (elements.espIpInput) {
-        elements.espIpInput.value = localStorage.getItem(LOCAL_IP_KEY) || "192.168.1.150";
-        elements.espIpInput.addEventListener("change", () => {
-            localStorage.setItem(LOCAL_IP_KEY, elements.espIpInput.value.trim());
-        });
-    }
+    document.getElementById("resetFilterBtn")?.addEventListener("click", () => {
+        const startDateInput = document.getElementById("startDateInput");
+        const endDateInput = document.getElementById("endDateInput");
+        if (startDateInput) startDateInput.value = "";
+        if (endDateInput) endDateInput.value = "";
+        filterAndRenderHistory();
+    });
 
-    elements.authForm?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const deviceId = elements.authDeviceId?.value.trim();
-        const deviceCode = elements.authDeviceCode?.value.trim();
-        if (!deviceId || !deviceCode) return showAuthModal("กรุณากรอกไอดีเครื่องและรหัส");
+    document.getElementById("printReportBtn")?.addEventListener("click", () => {
+        window.print();
+    });
 
-        try {
-            const res = await fetch("/api/verify", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "x-device-id": deviceId, "x-device-code": deviceCode },
-                body: JSON.stringify({})
-            });
-            if (res.ok) {
-                setAuth(deviceId, deviceCode);
-                hideAuthModal();
-                startApp({ deviceId, deviceCode });
-            } else {
-                showAuthModal("ไอดีเครื่องหรือรหัสไม่ถูกต้อง");
+    document.getElementById("clearHistoryBtn")?.addEventListener("click", async () => {
+        if (confirm("คุณต้องการล้างประวัติการให้อาหารทั้งหมดใช่หรือไม่?")) {
+            try {
+                await deleteAPI("/api/history");
+                loadHistory();
+            } catch (e) {
+                alert("เกิดข้อผิดพลาดในการล้างประวัติ");
             }
-        } catch {
-            showAuthModal("เชื่อมต่อ server ไม่ได้");
         }
     });
+});
 
-    elements.logoutBtn?.addEventListener("click", () => {
-        clearAuthStorage();
-        if (socket) socket.disconnect();
-        location.reload();
-    });
+// =====================================
+// TAB NAVIGATION SWITCH LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tabApBtn = document.getElementById("tabApBtn");
+    const tabHomeBtn = document.getElementById("tabHomeBtn");
+    const sectionAp = document.getElementById("section-ap-settings");
+    const sectionHome = document.getElementById("section-home-settings");
 
-    const scanWifiBtn = document.getElementById("scanWifiBtn");
-    const connectWifiBtn = document.getElementById("connectWifiBtn");
-    const homeSsidInput = document.getElementById("homeSsidInput");
-    const homePasswordInput = document.getElementById("homePasswordInput");
+    if (tabApBtn && tabHomeBtn) {
+        tabApBtn.addEventListener("click", () => {
+            tabApBtn.classList.add("active");
+            tabHomeBtn.classList.remove("active");
 
-    if (scanWifiBtn) {
-        scanWifiBtn.addEventListener("click", async () => {
-            if (window.location.protocol === "https:") {
-                if (confirm("⚠️ หน้าเว็บบน HTTPS ไม่สามารถสแกน Wi-Fi ตรงได้\n\nกด OK เพื่อเปิดไปยังหน้าตั้งค่าของ ESP32 (http://192.168.4.1)")) {
-                    window.location.href = "http://192.168.4.1";
-                }
-                return;
-            }
+            if (sectionAp) sectionAp.style.display = "block";
+            if (sectionHome) sectionHome.style.display = "none";
+        });
 
-            try {
-                const response = await fetch("http://192.168.4.1/api/scan-wifi");
-                const wifiList = await response.json();
-                if (Array.isArray(wifiList) && wifiList.length > 0 && homeSsidInput) {
-                    homeSsidInput.value = wifiList[0];
-                }
-            } catch (err) {
-                alert("❌ สแกนล้มเหลว กรุณาเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' แล้วเข้า http://192.168.4.1");
-            }
+        tabHomeBtn.addEventListener("click", () => {
+            tabHomeBtn.classList.add("active");
+            tabApBtn.classList.remove("active");
+
+            if (sectionAp) sectionAp.style.display = "none";
+            if (sectionHome) sectionHome.style.display = "block";
         });
     }
+});
 
+// =====================================
+// SETTINGS PAGE WIFI SCAN & CONNECT LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const scanWifiBtn = document.getElementById("scanWifiBtn");
+    const connectWifiBtn = document.getElementById("connectWifiBtn");
+    const forgetWifiBtn = document.getElementById("forgetWifiBtn");
+    
+    const homeSsidInput = document.getElementById("homeSsidInput");
+    const homePasswordInput = document.getElementById("homePasswordInput");
+    const wifiListOptions = document.getElementById("wifiListOptions");
+
+    // ดึง URL ของ ESP32 ( Local IP หรือ Direct Connection )
+    function getEspBaseUrl() {
+        if (typeof currentMode !== "undefined" && currentMode === "local") {
+            const espIp = localStorage.getItem(LOCAL_IP_KEY) || "192.168.4.1";
+            return `http://${espIp}`;
+        }
+        return "";
+    }
+
+    if (scanWifiBtn) {
+    scanWifiBtn.addEventListener("click", async () => {
+        // หากเปิดผ่าน HTTPS บน Vercel ให้แจ้งเตือนผู้ใช้ให้ไปเปิดผ่าน HTTP ของบอร์ดตรงๆ
+        if (window.location.protocol === "https:") {
+            if (confirm("⚠️ หน้าเว็บบน HTTPS ไม่สามารถสแกน Wi-Fi ตรงได้\n\nกด OK เพื่อเปิดไปยังหน้าตั้งค่าของ ESP32 (http://192.168.4.1)")) {
+                window.location.href = "http://192.168.4.1";
+            }
+            return;
+        }
+
+        // โค้ดสแกนปกติสำหรับโหมด HTTP Local
+        try {
+            const response = await fetch("/api/scan-wifi");
+            const wifiList = await response.json();
+            // ... (จัดการแสดงผลตามปกติ)
+        } catch (err) {
+            alert("❌ สแกนล้มเหลว กรุณาเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' แล้วเข้า http://192.168.4.1");
+        }
+    });
+}
+
+    // 2. ปุ่มบันทึก / เชื่อมต่อ WiFi บ้าน
     if (connectWifiBtn) {
         connectWifiBtn.addEventListener("click", async () => {
             const ssid = homeSsidInput?.value.trim();
             const pass = homePasswordInput?.value.trim() || "";
 
-            if (!ssid) return alert("กรุณาเลือกหรือกรอกชื่อ SSID Wi-Fi บ้าน");
+            if (!ssid) return alert("กรุณากรอกหรือเลือก SSID WiFi บ้าน");
+
+            const originalText = connectWifiBtn.textContent;
+            connectWifiBtn.disabled = true;
+            connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/save-wifi` : "/api/save-wifi";
+
+                const response = await fetch(`${targetUrl}?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
                     method: "POST"
                 });
                 const resData = await response.json();
+
                 if (resData.success) {
-                    alert("✅ ส่งข้อมูลสำเร็จ! ESP32 กำลังเชื่อมต่อ Wi-Fi บ้าน");
+                    alert("✅ บันทึกเรียบร้อย! ESP32 กำลังรีบูตเพื่อเชื่อมต่อ WiFi บ้านใหม่...");
+                } else {
+                    alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
                 }
             } catch (err) {
-                alert("❌ ติดต่อ Server หรือ ESP32 ไม่ได้!");
+                alert("❌ ติดต่อ ESP32 ไม่ได้!");
+            } finally {
+                connectWifiBtn.disabled = false;
+                connectWifiBtn.textContent = originalText;
             }
         });
     }
 
-    const existingAuth = getAuth();
-    if (existingAuth || !elements.authModal) {
-        hideAuthModal();
-        startApp(existingAuth || { deviceId: "device123", deviceCode: "1234" });
-    } else {
-        showAuthModal();
+    // 3. ปุ่มลืมเครือข่ายนี้ (Reset WiFi)
+    if (forgetWifiBtn) {
+        forgetWifiBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการลืมเครือข่ายและรีเซ็ตค่า Wi-Fi ใช่หรือไม่?")) return;
+
+            try {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/reset-wifi` : "/api/reset-wifi";
+
+                const response = await fetch(targetUrl, { method: "POST" });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ ลบข้อมูล Wi-Fi เรียบร้อย ESP32 จะทำการรีบูตเข้าสู่ AP Mode");
+                }
+            } catch (err) {
+                alert("❌ ส่งคำสั่งล้างค่าล้มเหลว!");
+            }
+        });
+    }
+});
+
+// =====================================
+// SETTINGS PAGE - WIFI SCAN & CONNECT LOGIC
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const scanWifiBtn = document.getElementById("scanWifiBtn");
+    const connectWifiBtn = document.getElementById("connectWifiBtn");
+    const homeSsidInput = document.getElementById("homeSsidInput");
+    const homePasswordInput = document.getElementById("homePasswordInput");
+    const wifiListOptions = document.getElementById("wifiListOptions");
+
+    // 1. กดปุ่มสแกนหา WiFi (ไม่มี Pop-up เด้ง ทำงานเงียบๆ แล้วใส่ชื่อในช่องทันที)
+    if (scanWifiBtn) {
+        scanWifiBtn.addEventListener("click", async () => {
+            const originalText = scanWifiBtn.textContent;
+            scanWifiBtn.disabled = true;
+            scanWifiBtn.textContent = "⏳ กำลังสแกน...";
+
+            try {
+                // ยิงไปขอรายชื่อ Wi-Fi จาก ESP32 โดยตรง
+                const response = await fetch("http://192.168.4.1/api/scan-wifi");
+                const wifiList = await response.json();
+
+                if (Array.isArray(wifiList) && wifiList.length > 0) {
+                    // เคลียร์รายการเก่าใน Datalist
+                    if (wifiListOptions) wifiListOptions.innerHTML = "";
+
+                    // สกัดเอาชื่อที่ไม่ซ้ำ และไม่เป็นค่าว่าง
+                    const cleanList = [...new Set(wifiList)].filter(ssid => ssid && ssid.trim() !== "");
+
+                    cleanList.forEach(ssid => {
+                        const option = document.createElement("option");
+                        option.value = ssid;
+                        if (wifiListOptions) wifiListOptions.appendChild(option);
+                    });
+
+                    // 🎯 ใส่ชื่อ Wi-Fi สัญญาณแรกเข้าไปในช่องใส่ชื่ออัตโนมัติ
+                    if (homeSsidInput && cleanList.length > 0) {
+                        homeSsidInput.value = cleanList[0];
+                    }
+                }
+            } catch (err) {
+                console.error("สแกน Wi-Fi ไม่สำเร็จ:", err);
+            } finally {
+                scanWifiBtn.disabled = false;
+                scanWifiBtn.textContent = originalText;
+            }
+        });
     }
 
-    setInterval(loadStatus, 2000);
+    // 2. กดปุ่ม บันทึก / เชื่อมต่อ
+    if (connectWifiBtn) {
+        connectWifiBtn.addEventListener("click", async () => {
+            const ssid = homeSsidInput?.value.trim();
+            const pass = homePasswordInput?.value.trim() || "";
+
+            if (!ssid) {
+                alert("กรุณาเลือกหรือกรอกชื่อ SSID Wi-Fi บ้าน");
+                return;
+            }
+
+            connectWifiBtn.disabled = true;
+            connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                // ส่งผ่าน API ของ Vercel (HTTPS) เพื่อป้องกันเบราว์เซอร์บล็อก
+                const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
+                });
+            
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ ส่งข้อมูลสำเร็จ! ESP32 กำลังเชื่อมต่อ Wi-Fi บ้าน");
+                } else {
+                    alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
+                }
+            } catch (err) {
+                // หากยิง API ไม่ผ่าน ให้ fallback ไปลองส่งตรงอีกรอบ
+                try {
+                    await fetch(`http://192.168.4.1/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { mode: 'no-cors' });
+                    alert("✅ ส่งคำสั่งไปยัง ESP32 เรียบร้อยแล้ว!");
+                } catch (e) {
+                    alert("❌ ติดต่อ ESP32 ไม่ได้! กรุณาตรวจสอบว่าเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' อยู่หรือไม่");
+                }
+            } finally {
+                connectWifiBtn.disabled = false;
+                connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
+            }
+        });
+    }
+});
+
+// =====================================
+// REAL-TIME WEIGHT UPDATE LOGIC
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tankWeightText = document.getElementById("tankWeightText");
+    const tankProgressBar = document.getElementById("tankProgressBar");
+    const daysRemainingText = document.getElementById("daysRemainingText");
+    const foodStatusBadge = document.getElementById("foodStatusBadge");
+
+    const MAX_CAPACITY_GRAMS = 500; // ความจุถังอาหารสูงสุด (กรัม)
+    const DAILY_USAGE_GRAMS = 20;   // ปริมาณการใช้อาหารต่อวันโดยประมาณ (กรัม)
+
+    async function fetchRealtimeWeight() {
+        try {
+            // ดึงข้อมูลสถานะและน้ำหนักจาก Backend API บน Vercel
+            const response = await fetch("/api/status", {
+                headers: {
+                    "x-device-id": "device123" // ระบุ Device ID ให้ตรงกัน
+                }
+            });
+
+            if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
+
+            const data = await response.json();
+            
+            // อ่านค่าน้ำหนักจาก Response (รองรับทั้ง current_weight หรือ weight_grams)
+            const weight = parseFloat(data.current_weight || data.weight_grams || 0);
+            const formattedWeight = weight > 0 ? weight.toFixed(1) : "0";
+
+            // 1. อัปเดตตัวเลขน้ำหนักบนหน้าเว็บ
+            if (tankWeightText) {
+                tankWeightText.textContent = `${formattedWeight} g`;
+            }
+
+            // 2. อัปเดต Progress Bar
+            if (tankProgressBar) {
+                const percent = Math.min(Math.max((weight / MAX_CAPACITY_GRAMS) * 100, 0), 100);
+                tankProgressBar.style.width = `${percent}%`;
+            }
+
+            // 3. คำนวณจำนวนวันที่เหลือ
+            if (daysRemainingText) {
+                const daysLeft = (weight / DAILY_USAGE_GRAMS).toFixed(1);
+                daysRemainingText.textContent = `${weight > 0 ? daysLeft : "0.0"} วัน`;
+            }
+
+            // 4. อัปเดตป้ายสถานะอาหาร
+            if (foodStatusBadge) {
+                if (weight <= 10) {
+                    foodStatusBadge.textContent = "🔴 เติมอาหาร";
+                    foodStatusBadge.className = "status-badge red";
+                } else {
+                    foodStatusBadge.textContent = "🟢 ปกติ";
+                    foodStatusBadge.className = "status-badge green";
+                }
+            }
+
+        } catch (err) {
+            console.error("Error fetching weight:", err);
+        }
+    }
+
+    // เรียกทำงานทันทีเมื่อเปิดหน้า และดึงข้อมูลใหม่ทุกๆ 2 วินาที (2000 ms)
+    fetchRealtimeWeight();
+    setInterval(fetchRealtimeWeight, 2000);
 });

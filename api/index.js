@@ -6,10 +6,7 @@ require('dotenv').config();
 
 const app = express();
 
-app.use(cors({
-  origin: '*',
-  allowedHeaders: ['Content-Type', 'x-device-id', 'x-device-code']
-}));
+app.use(cors());
 app.use(express.json());
 
 // ----------------------------------------------------
@@ -76,7 +73,7 @@ function publishMQTT(topic, payload) {
 }
 
 // ----------------------------------------------------
-// 3. REST API Routes
+// 3. REST API Routes (เพิ่มส่วนอ่านข้อมูลเพื่อแก้ 404)
 // ----------------------------------------------------
 
 app.get('/api/health', (req, res) => {
@@ -92,18 +89,15 @@ app.get('/api/status', async (req, res) => {
       const snapshot = await db.ref(`devices/${deviceId}`).once('value');
       const data = snapshot.val() || {};
       
-      const currentWeight = data.current_weight ?? data.weight ?? 0;
-
       return res.json({
         online: true,
-        weight: currentWeight,
-        current_weight: currentWeight,
+        weight: data.current_weight || 0,
         lastSeen: data.last_updated ? data.last_updated * 1000 : Date.now(),
-        dailyUsage: data.dailyUsage || 100,
+        dailyUsage: 100,
         status: data.status || 'IDLE'
       });
     }
-    res.json({ online: true, weight: 0, current_weight: 0, dailyUsage: 100 });
+    res.json({ online: true, weight: 0, dailyUsage: 100 });
   } catch (error) {
     res.status(500).json({ online: false, error: error.message });
   }
@@ -126,14 +120,21 @@ app.get('/api/history', async (req, res) => {
   }
 });
 
-app.get('/api/alerts', (req, res) => res.json([]));
-app.get('/api/schedule', (req, res) => res.json([]));
+// 🟢 ดึงการแจ้งเตือน (Alerts)
+app.get('/api/alerts', (req, res) => {
+  res.json([]);
+});
+
+// 🟢 ดึงตารางเวลาให้อาหาร (Schedule)
+app.get('/api/schedule', (req, res) => {
+  res.json([]);
+});
 
 // 🐟 สั่งให้อาหารปลา (Feed Command)
 app.post('/api/feed', async (req, res) => {
   try {
     const deviceId = req.body.deviceId || req.headers['x-device-id'] || 'device123';
-    const feedAmount = Number(req.body.grams || req.body.amountGrams || req.body.amount || 10);
+    const feedAmount = Number(req.body.amountGrams || req.body.grams || 10);
     let mqttSuccess = false;
 
     if (admin.apps.length) {
@@ -178,7 +179,7 @@ app.post('/api/stop', async (req, res) => {
     if (admin.apps.length) {
       try {
         const db = admin.database();
-        await db.ref(`devices/${deviceId}/cmd_feed`).set(-1);
+        await db.ref(`devices/${deviceId}/cmd_feed`).set(0);
       } catch (dbErr) {
         console.error('❌ Firebase stop error:', dbErr.message);
       }
@@ -199,36 +200,33 @@ app.post('/api/stop', async (req, res) => {
   }
 });
 
-// 📶 บันทึกการตั้งค่า Wi-Fi ใหม่
-app.post('/api/save-wifi', async (req, res) => {
-  const ssid = req.query.ssid || req.body.ssid;
-  const pass = req.query.pass || req.body.pass || "";
-  const deviceId = req.headers['x-device-id'] || req.body.deviceId || 'device123';
-
-  if (!ssid) {
-    return res.status(400).json({ success: false, message: 'กรุณาระบุ SSID' });
-  }
-
-  try {
-    if (admin.apps.length) {
-      const db = admin.database();
-      await db.ref(`devices/${deviceId}/wifi_config`).set({
-        ssid: ssid,
-        pass: pass,
-        updated_at: Date.now()
-      });
-    }
-    return res.json({ success: true, message: 'บันทึกข้อมูล Wi-Fi ลงระบบเรียบร้อย' });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-});
-
 if (process.env.NODE_ENV !== 'production') {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
     console.log(`🚀 Smart Fish Feeder API is running on port ${PORT}`);
   });
 }
+
+app.post('/api/save-wifi', async (req, res) => {
+    const { ssid, pass } = req.query;
+    const deviceId = req.headers['x-device-id'] || 'device123';
+
+    if (!ssid) {
+        return res.status(400).json({ success: false, message: 'กรุณาระบุ SSID' });
+    }
+
+    try {
+        // บันทึกคำสั่ง Wi-Fi ลง Firebase
+        await db.ref(`devices/${deviceId}/wifi_config`).set({
+            ssid: ssid,
+            pass: pass,
+            updated_at: Date.now()
+        });
+
+        return res.json({ success: true, message: 'บันทึกข้อมูล Wi-Fi ลงระบบเรียบร้อย' });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 module.exports = app;
