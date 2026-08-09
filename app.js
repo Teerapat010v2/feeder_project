@@ -940,3 +940,70 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+// =====================================
+// REAL-TIME WEIGHT UPDATE LOGIC
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tankWeightText = document.getElementById("tankWeightText");
+    const tankProgressBar = document.getElementById("tankProgressBar");
+    const daysRemainingText = document.getElementById("daysRemainingText");
+    const foodStatusBadge = document.getElementById("foodStatusBadge");
+
+    const MAX_CAPACITY_GRAMS = 500; // ความจุถังอาหารสูงสุด (กรัม)
+    const DAILY_USAGE_GRAMS = 20;   // ปริมาณการใช้อาหารต่อวันโดยประมาณ (กรัม)
+
+    async function fetchRealtimeWeight() {
+        try {
+            // ดึงข้อมูลสถานะและน้ำหนักจาก Backend API บน Vercel
+            const response = await fetch("/api/status", {
+                headers: {
+                    "x-device-id": "device123" // ระบุ Device ID ให้ตรงกัน
+                }
+            });
+
+            if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
+
+            const data = await response.json();
+            
+            // อ่านค่าน้ำหนักจาก Response (รองรับทั้ง current_weight หรือ weight_grams)
+            const weight = parseFloat(data.current_weight || data.weight_grams || 0);
+            const formattedWeight = weight > 0 ? weight.toFixed(1) : "0";
+
+            // 1. อัปเดตตัวเลขน้ำหนักบนหน้าเว็บ
+            if (tankWeightText) {
+                tankWeightText.textContent = `${formattedWeight} g`;
+            }
+
+            // 2. อัปเดต Progress Bar
+            if (tankProgressBar) {
+                const percent = Math.min(Math.max((weight / MAX_CAPACITY_GRAMS) * 100, 0), 100);
+                tankProgressBar.style.width = `${percent}%`;
+            }
+
+            // 3. คำนวณจำนวนวันที่เหลือ
+            if (daysRemainingText) {
+                const daysLeft = (weight / DAILY_USAGE_GRAMS).toFixed(1);
+                daysRemainingText.textContent = `${weight > 0 ? daysLeft : "0.0"} วัน`;
+            }
+
+            // 4. อัปเดตป้ายสถานะอาหาร
+            if (foodStatusBadge) {
+                if (weight <= 10) {
+                    foodStatusBadge.textContent = "🔴 เติมอาหาร";
+                    foodStatusBadge.className = "status-badge red";
+                } else {
+                    foodStatusBadge.textContent = "🟢 ปกติ";
+                    foodStatusBadge.className = "status-badge green";
+                }
+            }
+
+        } catch (err) {
+            console.error("Error fetching weight:", err);
+        }
+    }
+
+    // เรียกทำงานทันทีเมื่อเปิดหน้า และดึงข้อมูลใหม่ทุกๆ 2 วินาที (2000 ms)
+    fetchRealtimeWeight();
+    setInterval(fetchRealtimeWeight, 2000);
+});

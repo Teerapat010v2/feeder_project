@@ -51,7 +51,7 @@ String pubWeightTopic = "fishfeeder/" + String(DEVICE_ID) + "/weight";
 
 // Timers & State Variables
 unsigned long lastWeightReport = 0;
-const long reportInterval = 5000; // รายงานค่าน้ำหนักทุก 5 วินาที
+const long reportInterval = 2000; // รายงานค่าน้ำหนักทุก 5 วินาที
 unsigned long lastFbCheck = 0;    // ตัวจับเวลาเช็ก Firebase
 
 bool isFeeding = false;
@@ -528,5 +528,26 @@ void handleSaveWifi() {
     ESP.restart();
   } else {
     server.send(400, "application/json", "{\"success\":false,\"message\":\"กรุณาระบุชื่อ SSID\"}");
+  }
+}
+
+void checkWifiConfigFromFirebase() {
+  if (Firebase.ready() && (millis() - lastFbCheck >= 3000)) {
+    String path = "/devices/" + String(DEVICE_ID) + "/wifi_config";
+    if (Firebase.getString(fbdo, path + "/ssid")) {
+      String newSsid = fbdo.stringData();
+      if (newSsid.length() > 0) {
+        String newPass = "";
+        if (Firebase.getString(fbdo, path + "/pass")) {
+          newPass = fbdo.stringData();
+        }
+        // ล้างค่าเดิมบน Firebase
+        Firebase.deleteNode(fbdo, path);
+        
+        // บันทึกเข้า Wi-Fi บ้านแล้วรีบูตบอร์ด
+        WiFi.begin(newSsid.c_str(), newPass.c_str());
+        ESP.restart();
+      }
+    }
   }
 }
