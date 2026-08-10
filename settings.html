@@ -77,19 +77,13 @@
         <!-- 1.2 ตั้งค่า WiFi ที่จะให้เครื่องเชื่อมต่อ (Home WiFi) -->
         <section id="section-home-settings" class="page-section" style="display: none;">
             <div class="card">
-                <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="card-header-title">
                     <span>ตั้งค่า WiFi ที่จะให้เครื่องเชื่อมต่อ (Home WiFi)</span>
-                    <button id="scanWifiBtn" class="btn-warning" style="width: auto; min-height: 32px; font-size: 12px; padding: 4px 12px;">
-                        สแกนหา WiFi
-                    </button>
                 </div>
 
                 <div class="input-group" style="margin-top: 12px;">
-                    <label for="homeSsidInput">SSID WiFi บ้าน:</label>
-                    <input type="text" id="homeSsidInput" list="wifiListOptions" placeholder="เลือกจากรายการสแกนหรือพิมพ์ชื่อ">
-                    <datalist id="wifiListOptions">
-                        <!-- รายการ WiFi ที่สแกนเจอจะถูกฉีดเข้าที่นี่ -->
-                    </datalist>
+                    <label for="homeSsidInput">ชื่อ WiFi บ้าน (SSID):</label>
+                    <input type="text" id="homeSsidInput" placeholder="กรอกชื่อ WiFi บ้าน">
                 </div>
 
                 <div class="input-group">
@@ -106,6 +100,6 @@
 
     </main>
 
-    <script src="/app.js"></script>
+    <script type="module" src="/app.js"></script>
 </body>
 </html>
