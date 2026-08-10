@@ -2,39 +2,6 @@
 // Fish Feeder IoT - Integrated App Script
 // =====================================
 
-// 🟢 1. Import Firebase Firestore Web SDK
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-// 🟢 2. ใส่ค่า Firebase Config ของคุณตรงนี้ (ดึงมาจาก Firebase Console)
-const firebaseConfig = {
-    apiKey: "AIzaSyBjVm1W-7XVz_nyCetLcXhqI_XsA3sSneY",
-    authDomain: "kaptun-e8c23.firebaseapp.com",
-    databaseURL: "https://kaptun-e8c23-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "kaptun-e8c23",
-    storageBucket: "kaptun-e8c23.firebasestorage.app",
-    messagingSenderId: "328923986439",
-    appId: "1:328923986439:web:8cb42e97592936903c88a2"
-};
-
-// Initialize Firebase & Firestore
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
-
-// 🟢 ฟังก์ชันสำหรับเพิ่ม Alert ลงใน Firestore (Collection: 'alerts')
-async function saveAlertToFirestore(level, message) {
-    try {
-        await addDoc(collection(db, "alerts"), {
-            level: level, // เช่น "info", "warning", "danger"
-            message: message,
-            timestamp: serverTimestamp()
-        });
-        console.log("✅ บันทึก Alert ลง Firestore สำเร็จ");
-    } catch (error) {
-        console.error("❌ เกิดข้อผิดพลาดในการบันทึก Alert ลง Firestore:", error);
-    }
-}
-
 // ---------- DOM Elements ----------
 const statusText = document.getElementById("statusText");
 const lastSeen = document.getElementById("lastSeen");
@@ -121,6 +88,7 @@ function clearAuthStorage() {
     localStorage.removeItem(AUTH_KEY);
 }
 
+// เปลี่ยน DEV01 เป็น device123
 function authHeaders() {
     const auth = getAuth() || { deviceId: "device123", deviceCode: "1234" };
     return {
@@ -258,24 +226,31 @@ async function loadSchedule() {
 // =====================================
 // REALTIME TOP-BAR STATUS CONTROL
 // =====================================
+
+// ฟังก์ชันอัปเดตป้ายสถานะแท็บด้านบน
 function updateConnectionStatusUI(isOnline = false) {
     const connStatus = document.getElementById("connectionStatus");
     if (!connStatus) return;
 
+    // เช็คโหมดการควบคุมปัจจุบัน (cloud หรือ local)
     const currentControlMode = localStorage.getItem("fishfeeder_mode") || "cloud";
 
     if (currentControlMode === "local") {
+        // 1. กรณีใช้งาน Local Mode
         connStatus.className = "status-badge local";
         connStatus.innerText = "● Local";
     } else if (isOnline) {
+        // 2. กรณีเครื่องต่อ Wi-Fi / Cloud Online
         connStatus.className = "status-badge online";
         connStatus.innerText = "● Online";
     } else {
+        // 3. กรณีเครื่องปิด / ถอดปลั๊ก / เน็ตหลุด
         connStatus.className = "status-badge offline";
         connStatus.innerText = "● Offline";
     }
 }
 
+// อัปเดตฟังก์ชัน updateStatus ให้เรียกใช้การเปลี่ยนสถานะ
 function updateStatus(data) {
     const isOnline = data && data.online === true;
     updateConnectionStatusUI(isOnline);
@@ -287,18 +262,19 @@ function updateStatus(data) {
     }
 }
 
+// เพิ่มการรับฟัง Event เมื่อมีการสลับโหมด Cloud / Local
 document.addEventListener("DOMContentLoaded", () => {
     const btnCloud = document.getElementById("btn-cloud") || document.getElementById("btnCloud");
     const btnLocal = document.getElementById("btn-local") || document.getElementById("btnLocal");
 
     btnCloud?.addEventListener("click", () => {
         localStorage.setItem("fishfeeder_mode", "cloud");
-        loadStatus();
+        loadStatus(); // โหลดสถานะใหม่ทันที
     });
 
     btnLocal?.addEventListener("click", () => {
         localStorage.setItem("fishfeeder_mode", "local");
-        updateConnectionStatusUI(false);
+        updateConnectionStatusUI(false); // สลับเป็น Local ทันที
     });
 });
 
@@ -392,7 +368,7 @@ function startApp(auth) {
         alert("Daily usage updated");
     });
 
-    // 🟢 ปุ่มกดสั่งให้อาหาร (เพิ่มบันทึก Firestore สำหรับ Local Mode)
+    // ปุ่มกดสั่งให้อาหาร (ตรงตาม API /api/feed -> { grams })
     feedBtn?.addEventListener("click", async () => {
         const grams = Number(feedAmount?.value || 10);
         if (grams <= 0) return alert("กรุณาระบุปริมาณอาหารมากกว่า 0 กรัม");
@@ -404,14 +380,8 @@ function startApp(auth) {
         try {
             if (currentMode === "cloud") {
                 const result = await postJSON('/api/feed', { grams: grams });
-                
-                if (result && result.success) {
-                    alert("✅ [Cloud Mode] ส่งคำสั่งเรียบร้อย!");
-                } else {
-                    alert(`❌ ${result?.message || "ส่งไม่สำเร็จ"}`);
-                }
+                alert(result && result.success ? "✅ [Cloud Mode] ส่งคำสั่งเรียบร้อย!" : `❌ ${result?.message || "ส่งไม่สำเร็จ"}`);
             } else {
-                // 🟢 โหมด Local Mode (ยิงตรงไปที่ ESP32)
                 const espIp = espIpInput ? espIpInput.value.trim() : "";
                 if (!espIp) return alert("กรุณากรอก IP Address ของอุปกรณ์");
                 localStorage.setItem(LOCAL_IP_KEY, espIp);
@@ -421,13 +391,7 @@ function startApp(auth) {
                 const response = await fetch(`http://${espIp}/local-feed?amount=${grams}`, { signal: controller.signal });
                 clearTimeout(timeoutId);
 
-                if (response.ok) {
-                    // 🟢 เมื่อยิง Local สำเร็จ ให้บันทึก Alert ลง Firestore ทันที
-                    await saveAlertToFirestore("info", `ให้อาหารสัตว์เลี้ยงเรียบร้อยแล้ว (${grams} กรัม - Local Mode)`);
-                    alert("✅ [Local Mode] สั่งให้อาหารสำเร็จ!");
-                } else {
-                    alert("❌ บอร์ดตอบกลับข้อผิดพลาด");
-                }
+                alert(response.ok ? "✅ [Local Mode] สั่งให้อาหารสำเร็จ!" : "❌ บอร์ดตอบกลับข้อผิดพลาด");
             }
         } catch (err) {
             alert(currentMode === "local" ? "❌ ติดต่อบอร์ดไม่ได้!" : "❌ เชื่อมต่อ Cloud API ล้มเหลว");
@@ -446,9 +410,6 @@ function startApp(auth) {
                 const espIp = espIpInput ? espIpInput.value.trim() : "";
                 if (!espIp) return alert("กรุณากรอก IP Address ของอุปกรณ์");
                 await fetch(`http://${espIp}/local-stop`);
-                
-                // 🟢 บันทึกการกดหยุดฉุกเฉินลง Firestore
-                await saveAlertToFirestore("danger", "หยุดการให้อาหารฉุกเฉิน (Local Mode)");
                 alert("🛑 [Local Mode] ส่งคำสั่งหยุดแล้ว");
             }
         } catch (err) {
@@ -789,6 +750,105 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =====================================
+// SETTINGS PAGE WIFI SCAN & CONNECT LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const scanWifiBtn = document.getElementById("scanWifiBtn");
+    const connectWifiBtn = document.getElementById("connectWifiBtn");
+    const forgetWifiBtn = document.getElementById("forgetWifiBtn");
+    
+    const homeSsidInput = document.getElementById("homeSsidInput");
+    const homePasswordInput = document.getElementById("homePasswordInput");
+    const wifiListOptions = document.getElementById("wifiListOptions");
+
+    // ดึง URL ของ ESP32 ( Local IP หรือ Direct Connection )
+    function getEspBaseUrl() {
+        if (typeof currentMode !== "undefined" && currentMode === "local") {
+            const espIp = localStorage.getItem(LOCAL_IP_KEY) || "192.168.4.1";
+            return `http://${espIp}`;
+        }
+        return "";
+    }
+
+    if (scanWifiBtn) {
+    scanWifiBtn.addEventListener("click", async () => {
+        // หากเปิดผ่าน HTTPS บน Vercel ให้แจ้งเตือนผู้ใช้ให้ไปเปิดผ่าน HTTP ของบอร์ดตรงๆ
+        if (window.location.protocol === "https:") {
+            if (confirm("⚠️ หน้าเว็บบน HTTPS ไม่สามารถสแกน Wi-Fi ตรงได้\n\nกด OK เพื่อเปิดไปยังหน้าตั้งค่าของ ESP32 (http://192.168.4.1)")) {
+                window.location.href = "http://192.168.4.1";
+            }
+            return;
+        }
+
+        // โค้ดสแกนปกติสำหรับโหมด HTTP Local
+        try {
+            const response = await fetch("/api/scan-wifi");
+            const wifiList = await response.json();
+            // ... (จัดการแสดงผลตามปกติ)
+        } catch (err) {
+            alert("❌ สแกนล้มเหลว กรุณาเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' แล้วเข้า http://192.168.4.1");
+        }
+    });
+}
+
+    // 2. ปุ่มบันทึก / เชื่อมต่อ WiFi บ้าน
+    if (connectWifiBtn) {
+        connectWifiBtn.addEventListener("click", async () => {
+            const ssid = homeSsidInput?.value.trim();
+            const pass = homePasswordInput?.value.trim() || "";
+
+            if (!ssid) return alert("กรุณากรอกหรือเลือก SSID WiFi บ้าน");
+
+            const originalText = connectWifiBtn.textContent;
+            connectWifiBtn.disabled = true;
+            connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/save-wifi` : "/api/save-wifi";
+
+                const response = await fetch(`${targetUrl}?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
+                    method: "POST"
+                });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ บันทึกเรียบร้อย! ESP32 กำลังรีบูตเพื่อเชื่อมต่อ WiFi บ้านใหม่...");
+                } else {
+                    alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
+                }
+            } catch (err) {
+                alert("❌ ติดต่อ ESP32 ไม่ได้!");
+            } finally {
+                connectWifiBtn.disabled = false;
+                connectWifiBtn.textContent = originalText;
+            }
+        });
+    }
+
+    // 3. ปุ่มลืมเครือข่ายนี้ (Reset WiFi)
+    if (forgetWifiBtn) {
+        forgetWifiBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการลืมเครือข่ายและรีเซ็ตค่า Wi-Fi ใช่หรือไม่?")) return;
+
+            try {
+                const baseUrl = getEspBaseUrl();
+                const targetUrl = baseUrl ? `${baseUrl}/api/reset-wifi` : "/api/reset-wifi";
+
+                const response = await fetch(targetUrl, { method: "POST" });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ ลบข้อมูล Wi-Fi เรียบร้อย ESP32 จะทำการรีบูตเข้าสู่ AP Mode");
+                }
+            } catch (err) {
+                alert("❌ ส่งคำสั่งล้างค่าล้มเหลว!");
+            }
+        });
+    }
+});
+
+// =====================================
 // SETTINGS PAGE - WIFI SCAN & CONNECT LOGIC
 // =====================================
 document.addEventListener("DOMContentLoaded", () => {
@@ -798,6 +858,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const homePasswordInput = document.getElementById("homePasswordInput");
     const wifiListOptions = document.getElementById("wifiListOptions");
 
+    // 1. กดปุ่มสแกนหา WiFi (ไม่มี Pop-up เด้ง ทำงานเงียบๆ แล้วใส่ชื่อในช่องทันที)
     if (scanWifiBtn) {
         scanWifiBtn.addEventListener("click", async () => {
             const originalText = scanWifiBtn.textContent;
@@ -805,12 +866,15 @@ document.addEventListener("DOMContentLoaded", () => {
             scanWifiBtn.textContent = "⏳ กำลังสแกน...";
 
             try {
+                // ยิงไปขอรายชื่อ Wi-Fi จาก ESP32 โดยตรง
                 const response = await fetch("http://192.168.4.1/api/scan-wifi");
                 const wifiList = await response.json();
 
                 if (Array.isArray(wifiList) && wifiList.length > 0) {
+                    // เคลียร์รายการเก่าใน Datalist
                     if (wifiListOptions) wifiListOptions.innerHTML = "";
 
+                    // สกัดเอาชื่อที่ไม่ซ้ำ และไม่เป็นค่าว่าง
                     const cleanList = [...new Set(wifiList)].filter(ssid => ssid && ssid.trim() !== "");
 
                     cleanList.forEach(ssid => {
@@ -819,6 +883,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (wifiListOptions) wifiListOptions.appendChild(option);
                     });
 
+                    // 🎯 ใส่ชื่อ Wi-Fi สัญญาณแรกเข้าไปในช่องใส่ชื่ออัตโนมัติ
                     if (homeSsidInput && cleanList.length > 0) {
                         homeSsidInput.value = cleanList[0];
                     }
@@ -832,6 +897,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // 2. กดปุ่ม บันทึก / เชื่อมต่อ
     if (connectWifiBtn) {
         connectWifiBtn.addEventListener("click", async () => {
             const ssid = homeSsidInput?.value.trim();
@@ -846,6 +912,7 @@ document.addEventListener("DOMContentLoaded", () => {
             connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
+                // ส่งผ่าน API ของ Vercel (HTTPS) เพื่อป้องกันเบราว์เซอร์บล็อก
                 const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
@@ -859,6 +926,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
                 }
             } catch (err) {
+                // หากยิง API ไม่ผ่าน ให้ fallback ไปลองส่งตรงอีกรอบ
                 try {
                     await fetch(`http://192.168.4.1/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { mode: 'no-cors' });
                     alert("✅ ส่งคำสั่งไปยัง ESP32 เรียบร้อยแล้ว!");
@@ -882,14 +950,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const daysRemainingText = document.getElementById("daysRemainingText");
     const foodStatusBadge = document.getElementById("foodStatusBadge");
 
-    const MAX_CAPACITY_GRAMS = 500;
-    const DAILY_USAGE_GRAMS = 20;
+    const MAX_CAPACITY_GRAMS = 500; // ความจุถังอาหารสูงสุด (กรัม)
+    const DAILY_USAGE_GRAMS = 20;   // ปริมาณการใช้อาหารต่อวันโดยประมาณ (กรัม)
 
     async function fetchRealtimeWeight() {
         try {
+            // ดึงข้อมูลสถานะและน้ำหนักจาก Backend API บน Vercel
             const response = await fetch("/api/status", {
                 headers: {
-                    "x-device-id": "device123"
+                    "x-device-id": "device123" // ระบุ Device ID ให้ตรงกัน
                 }
             });
 
@@ -897,23 +966,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const data = await response.json();
             
+            // อ่านค่าน้ำหนักจาก Response (รองรับทั้ง current_weight หรือ weight_grams)
             const weight = parseFloat(data.current_weight || data.weight_grams || 0);
             const formattedWeight = weight > 0 ? weight.toFixed(1) : "0";
 
+            // 1. อัปเดตตัวเลขน้ำหนักบนหน้าเว็บ
             if (tankWeightText) {
                 tankWeightText.textContent = `${formattedWeight} g`;
             }
 
+            // 2. อัปเดต Progress Bar
             if (tankProgressBar) {
                 const percent = Math.min(Math.max((weight / MAX_CAPACITY_GRAMS) * 100, 0), 100);
                 tankProgressBar.style.width = `${percent}%`;
             }
 
+            // 3. คำนวณจำนวนวันที่เหลือ
             if (daysRemainingText) {
                 const daysLeft = (weight / DAILY_USAGE_GRAMS).toFixed(1);
                 daysRemainingText.textContent = `${weight > 0 ? daysLeft : "0.0"} วัน`;
             }
 
+            // 4. อัปเดตป้ายสถานะอาหาร
             if (foodStatusBadge) {
                 if (weight <= 10) {
                     foodStatusBadge.textContent = "🔴 เติมอาหาร";
@@ -929,6 +1003,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // เรียกทำงานทันทีเมื่อเปิดหน้า และดึงข้อมูลใหม่ทุกๆ 2 วินาที (2000 ms)
     fetchRealtimeWeight();
     setInterval(fetchRealtimeWeight, 2000);
 });
