@@ -146,6 +146,15 @@ app.post('/api/feed', async (req, res) => {
           amount: feedAmount,
           timestamp: admin.database.ServerValue.TIMESTAMP
         });
+
+        // 🟢 [เพิ่มตรงนี้] บันทึกข้อมูลลง Firestore Collection 'alerts'
+        await admin.firestore().collection('alerts').add({
+          level: "info", // หรือ "success"
+          message: `ทำการให้อาหารจำนวน ${feedAmount} กรัม เรียบร้อยแล้ว`,
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log('✅ Alert created in Firestore successfully');
+
       } catch (dbErr) {
         console.error('❌ Firebase write error:', dbErr.message);
       }
