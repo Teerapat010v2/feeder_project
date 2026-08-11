@@ -1,6 +1,8 @@
 // =====================================
 // REAL-TIME WEIGHT & FEED CONTROL (DUAL MODE: LOCAL & ONLINE)
 // =====================================
+const DEVICE_ID = "Prototype_01";
+
 document.addEventListener("DOMContentLoaded", () => {
     // --- 1. ประกาศตัวแปร DOM Elements จาก index.html ---
     const tankWeightText = document.getElementById("tankWeightText");
@@ -28,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
         password: "Teerapat99",
         clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
     };
-    let DEVICE_ID = "Prototype_01";
+    
     let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
     let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
     
