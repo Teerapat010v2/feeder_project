@@ -31,20 +31,15 @@ const client = mqtt.connect({
 // TOPICS
 // ==========================
 
+const DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
+
 const TOPIC = {
-
-    COMMAND: "fishfeeder/command",   // Server -> Device (สั่งงาน)
-
-    STATUS: "fishfeeder/status",     // Device -> Server
-
-    WEIGHT: "fishfeeder/weight",     // Device -> Server
-
-    ALERT: "fishfeeder/alert",       // Device -> Server
-
-    HISTORY: "fishfeeder/history",   // Device -> Server
-
-    SCHEDULE: "fishfeeder/schedule"  // Server -> Device (sync ตาราง)
-
+    COMMAND: `fishfeeder/${DEVICE_ID}/cmd/command`,   // Server -> Device
+    STATUS: `fishfeeder/${DEVICE_ID}/status`,         // Device -> Server
+    WEIGHT: `fishfeeder/${DEVICE_ID}/weight`,         // Device -> Server
+    ALERT: `fishfeeder/${DEVICE_ID}/alert`,           // Device -> Server
+    HISTORY: `fishfeeder/${DEVICE_ID}/history`,       // Device -> Server
+    SCHEDULE: `fishfeeder/${DEVICE_ID}/schedule`      // Server -> Device
 };
 
 // เดิม subscribe ทุก topic รวมถึง COMMAND/SCHEDULE ที่ตัวเอง publish เอง (ฟัง echo ตัวเองโดยเปล่าประโยชน์)

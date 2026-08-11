@@ -9,6 +9,7 @@
 #include "HX711.h"
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <time.h>
 #include "secrets.h"
 
 // =================================================================
@@ -46,6 +47,21 @@ unsigned long feedDuration = 0;
 unsigned long lastMqttPublish = 0;
 String deviceId = "feeder_";
 
+// --- NTP & Scheduling ---
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 7 * 3600; // GMT+7
+const int   daylightOffset_sec = 0;
+
+struct ScheduleEntry {
+  int hour;
+  int minute;
+  int amount;
+  bool enable;
+};
+ScheduleEntry localSchedules[4];
+int scheduleCount = 0;
+int lastCheckedMinute = -1;
+
 // --- ประกาศชื่อฟังก์ชันล่วงหน้า (Function Prototypes) ---
 void triggerFeeding(int amountGrams);
 void stopFeeding();
@@ -61,6 +77,7 @@ void handleDummySuccess();
 bool handleFileRead(String path);
 void setRGB(bool r, bool g, bool b);
 void testMotorSerial();
+void updateLocalSchedulesFromJson(String json);
 
 // =================================================================
 // 📌 3.5. ฟังก์ชัน MQTT Callback & Connect
@@ -74,6 +91,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print(topic);
   Serial.print(" | Payload: ");
   Serial.println(message);
+
+  String topicStr = String(topic);
+  if (topicStr.endsWith("/schedule")) {
+    updateLocalSchedulesFromJson(message);
+    return;
+  }
 
   StaticJsonDocument<256> doc;
   DeserializationError error = deserializeJson(doc, message);
@@ -100,8 +123,10 @@ void connectMQTT() {
     Serial.print("📡 กำลังเชื่อมต่อ MQTT (HiveMQ)... ");
     if (mqttClient.connect(deviceId.c_str(), MQTT_USER, MQTT_PASS)) {
       Serial.println("✅ เชื่อมต่อ MQTT สำเร็จ");
-      String cmdTopic = "fishfeeder/" + deviceId + "/cmd/#";
+      String cmdTopic = "fishfeeder/" + deviceId + "/cmd/command";
+      String scheduleTopic = "fishfeeder/" + deviceId + "/schedule";
       mqttClient.subscribe(cmdTopic.c_str());
+      mqttClient.subscribe(scheduleTopic.c_str());
     } else {
       Serial.print("❌ ล้มเหลว State=");
       Serial.print(mqttClient.state());
@@ -192,6 +217,7 @@ void setup() {
     return;
   }
   Serial.println("✅ SPIFFS Mounted Successfully");
+  loadSchedules();
 
   preferences.begin("scale_config", true);
   float calib = preferences.getFloat("calib_factor", 220.4);
@@ -247,6 +273,10 @@ void setup() {
     if (WiFi.status() == WL_CONNECTED) {
       Serial.print("✅ เชื่อมต่อ Home Wi-Fi สำเร็จ! IP Address (สำหรับเข้าเว็บวงแลนเดียวกัน): ");
       Serial.println(WiFi.localIP());
+
+      // 🕒 ซิงค์เวลาจาก NTP
+      configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+      Serial.println("🕒 กำลังซิงค์เวลาจาก NTP...");
     } else {
       Serial.println("❌ เชื่อมต่อ Home Wi-Fi ไม่สำเร็จ (ระบบจะใช้ AP Mode ต่อไป)");
     }
@@ -276,8 +306,8 @@ void setup() {
   server.on("/api/history", HTTP_GET, handleDummyEmptyArray);
   server.on("/api/history", HTTP_DELETE, handleDummySuccess);
   server.on("/api/alerts", HTTP_GET, handleDummyEmptyArray);
-  server.on("/api/schedule", HTTP_GET, handleDummyEmptyArray);
-  server.on("/api/schedule", HTTP_POST, handleDummySuccess);
+  server.on("/api/schedule", HTTP_GET, handleGetSchedule);
+  server.on("/api/schedule", HTTP_POST, handlePostSchedule);
   server.on("/api/usage", HTTP_POST, handleDummySuccess);
 
   // ดักจับ /generate_204 กันมือถือสแปม
@@ -325,6 +355,28 @@ void publishMQTTStatus() {
     mqttClient.publish(statusTopic.c_str(), payload.c_str(), true); 
 }
 
+void checkSchedules() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    return; // Time not set yet
+  }
+
+  int currentHour = timeinfo.tm_hour;
+  int currentMin = timeinfo.tm_min;
+
+  if (currentMin != lastCheckedMinute) {
+    lastCheckedMinute = currentMin;
+    
+    for (int i = 0; i < scheduleCount; i++) {
+      if (localSchedules[i].enable && localSchedules[i].hour == currentHour && localSchedules[i].minute == currentMin) {
+        Serial.printf("⏰ ได้เวลาให้อาหาร (Schedule): %02d:%02d\n", currentHour, currentMin);
+        triggerFeeding(localSchedules[i].amount);
+        break; // Trigger only one schedule per minute
+      }
+    }
+  }
+}
+
 // =================================================================
 // 📌 9. ฟังก์ชันการทำงานหลัก LOOP
 // =================================================================
@@ -333,6 +385,8 @@ void loop() {
 
   dnsServer.processNextRequest(); 
   server.handleClient();          
+
+  checkSchedules();          
 
   if (WiFi.status() == WL_CONNECTED) {
     if (!mqttClient.connected()) {
@@ -554,7 +608,85 @@ void handleScanWifi() {
 }
 
 // =================================================================
-// 📌 19. API ดัมบ์ข้อมูลกันหน้าเว็บค้าง (Dummy Handlers)
+// 📌 19. ระบบตารางเวลา (Schedule)
+// =================================================================
+void updateLocalSchedulesFromJson(String json) {
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, json);
+  if (error) {
+    Serial.println("❌ Parse Schedule JSON Failed");
+    return;
+  }
+  
+  // Save to SPIFFS
+  File file = SPIFFS.open("/schedules.json", FILE_WRITE);
+  if (file) {
+    file.print(json);
+    file.close();
+  }
+
+  // If the JSON is wrapped in {"schedules": [...]}, extract it
+  JsonArray arr;
+  if (doc.containsKey("schedules")) {
+    arr = doc["schedules"].as<JsonArray>();
+  } else {
+    arr = doc.as<JsonArray>();
+  }
+
+  scheduleCount = 0;
+  for (JsonVariant v : arr) {
+    if (scheduleCount >= 4) break;
+    String timeStr = v["time"].as<String>();
+    int hour = timeStr.substring(0, 2).toInt();
+    int min = timeStr.substring(3, 5).toInt();
+    int amount = v["amount"].as<int>();
+    bool enable = v["enable"].as<bool>();
+    
+    localSchedules[scheduleCount].hour = hour;
+    localSchedules[scheduleCount].minute = min;
+    localSchedules[scheduleCount].amount = amount;
+    localSchedules[scheduleCount].enable = enable;
+    scheduleCount++;
+  }
+  Serial.printf("✅ อัปเดตตารางเวลา %d รายการ\n", scheduleCount);
+}
+
+void loadSchedules() {
+  if (SPIFFS.exists("/schedules.json")) {
+    File file = SPIFFS.open("/schedules.json", FILE_READ);
+    if (file) {
+      String json = file.readString();
+      file.close();
+      updateLocalSchedulesFromJson(json);
+    }
+  }
+}
+
+void handleGetSchedule() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (SPIFFS.exists("/schedules.json")) {
+    File file = SPIFFS.open("/schedules.json", FILE_READ);
+    String json = file.readString();
+    file.close();
+    server.send(200, "application/json", json);
+  } else {
+    server.send(200, "application/json", "[]");
+  }
+}
+
+void handlePostSchedule() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("plain")) {
+    String json = server.arg("plain");
+    updateLocalSchedulesFromJson(json);
+    server.send(200, "application/json", "{\"success\":true}");
+  } else {
+    server.send(400, "application/json", "{\"success\":false}");
+  }
+}
+
+// =================================================================
+// 📌 20. API ดัมบ์ข้อมูลกันหน้าเว็บค้าง (Dummy Handlers)
 // =================================================================
 void handleDummyEmptyArray() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
