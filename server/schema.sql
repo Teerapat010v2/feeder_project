@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS schedules (
     id SERIAL PRIMARY KEY,
     device_id VARCHAR(50) NOT NULL,
     time VARCHAR(5) NOT NULL,
+    amount NUMERIC DEFAULT 10,
     enable BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

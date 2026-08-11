@@ -243,6 +243,13 @@ router.post("/schedule", async (req, res) => {
                 });
 
             }
+            
+            if (item.amount !== undefined && (isNaN(Number(item.amount)) || Number(item.amount) <= 0 || Number(item.amount) > MAX_FEED_GRAMS)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `ปริมาณอาหารไม่ถูกต้อง (1-${MAX_FEED_GRAMS} กรัม): ${item?.amount}`
+                });
+            }
 
         }
 

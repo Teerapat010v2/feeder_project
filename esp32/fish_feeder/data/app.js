@@ -377,3 +377,217 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+// =====================================
+// SCHEDULE LOGIC (schedule.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const scheduleContainer = document.getElementById("scheduleContainer");
+    if (!scheduleContainer) return; // ไม่ใช่หน้า schedule.html
+
+    const addScheduleBtn = document.getElementById("addScheduleBtn");
+    const saveScheduleBtn = document.getElementById("saveScheduleBtn");
+    const scheduleCountBadge = document.getElementById("scheduleCountBadge");
+    
+    let schedules = [];
+    const MAX_SCHEDULES = 4;
+
+    // ฟังก์ชันสร้างแถว UI
+    function renderSchedules() {
+        scheduleContainer.innerHTML = "";
+        
+        if (schedules.length === 0) {
+            scheduleContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">ยังไม่มีการตั้งเวลา</div>`;
+        }
+
+        schedules.forEach((item, index) => {
+            const row = document.createElement("div");
+            row.className = "schedule-row";
+            row.innerHTML = `
+                <div class="schedule-time-col">
+                    <input type="time" class="time-input" value="${item.time}" data-index="${index}" required>
+                </div>
+                <div class="schedule-amount-col" style="display: flex; align-items: center; gap: 5px;">
+                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="500" data-index="${index}" style="width: 60px; padding: 5px;" required>
+                    <span style="font-size: 12px; color: var(--text-muted);">กรัม</span>
+                </div>
+                <div class="schedule-actions">
+                    <label class="toggle-switch">
+                        <input type="checkbox" class="enable-toggle" data-index="${index}" ${item.enable ? "checked" : ""}>
+                        <span class="slider"></span>
+                    </label>
+                    <button class="btn-icon-sm btn-delete-schedule" data-index="${index}">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+            scheduleContainer.appendChild(row);
+        });
+
+        // ผูก Event Listener ใหม่
+        document.querySelectorAll(".time-input").forEach(input => {
+            input.addEventListener("change", (e) => {
+                schedules[e.target.dataset.index].time = e.target.value;
+            });
+        });
+
+        document.querySelectorAll(".amount-input").forEach(input => {
+            input.addEventListener("change", (e) => {
+                schedules[e.target.dataset.index].amount = Number(e.target.value);
+            });
+        });
+
+        document.querySelectorAll(".enable-toggle").forEach(toggle => {
+            toggle.addEventListener("change", (e) => {
+                schedules[e.target.dataset.index].enable = e.target.checked;
+            });
+        });
+
+        document.querySelectorAll(".btn-delete-schedule").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                const index = e.currentTarget.dataset.index;
+                schedules.splice(index, 1);
+                renderSchedules();
+            });
+        });
+
+        scheduleCountBadge.textContent = `${schedules.length}/${MAX_SCHEDULES} รอบ`;
+        addScheduleBtn.disabled = schedules.length >= MAX_SCHEDULES;
+    }
+
+    // โหลดข้อมูลเริ่มต้น
+    async function loadSchedules() {
+        try {
+            const response = await fetch("/api/schedule");
+            if (response.ok) {
+                schedules = await response.json();
+                renderSchedules();
+            }
+        } catch (err) {
+            console.warn("ไม่สามารถโหลดตารางเวลาได้ (อาจต้องรอ Backend)");
+            renderSchedules();
+        }
+    }
+
+    if (addScheduleBtn) {
+        addScheduleBtn.addEventListener("click", () => {
+            if (schedules.length < MAX_SCHEDULES) {
+                schedules.push({ time: "08:00", amount: 10, enable: true });
+                renderSchedules();
+            }
+        });
+    }
+
+    if (saveScheduleBtn) {
+        saveScheduleBtn.addEventListener("click", async () => {
+            // Validate
+            for (let s of schedules) {
+                if (!s.time) {
+                    alert("กรุณาระบุเวลาให้ครบทุกช่อง");
+                    return;
+                }
+            }
+
+            saveScheduleBtn.disabled = true;
+            saveScheduleBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                const response = await fetch("/api/schedule", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-device-id": "device123", "x-device-code": "1234" },
+                    body: JSON.stringify({ schedules })
+                });
+
+                if (response.ok) {
+                    alert("✅ บันทึกตารางเวลาเรียบร้อยแล้ว");
+                } else {
+                    alert("❌ บันทึกไม่สำเร็จ");
+                }
+            } catch (err) {
+                alert("❌ ติดต่อเซิร์ฟเวอร์ไม่ได้");
+            } finally {
+                saveScheduleBtn.disabled = false;
+                saveScheduleBtn.textContent = "บันทึกตารางเวลา";
+            }
+        });
+    }
+
+    loadSchedules();
+});
+
+// =====================================
+// HISTORY LOGIC (history.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const historyTableBody = document.getElementById("historyTableBody");
+    const totalFoodSummary = document.getElementById("totalFoodSummary");
+    if (!historyTableBody) return; // ไม่ใช่หน้า history.html
+
+    const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+
+    async function loadHistory() {
+        try {
+            const response = await fetch("/api/history");
+            if (response.ok) {
+                const history = await response.json();
+                renderHistory(history);
+            } else {
+                historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">โหลดข้อมูลล้มเหลว</td></tr>`;
+            }
+        } catch (err) {
+            historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">ไม่สามารถติดต่อเซิร์ฟเวอร์ได้</td></tr>`;
+        }
+    }
+
+    function renderHistory(history) {
+        historyTableBody.innerHTML = "";
+        let totalAmount = 0;
+
+        if (history.length === 0) {
+            historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">ไม่มีประวัติการทำงาน</td></tr>`;
+        } else {
+            history.forEach(item => {
+                totalAmount += item.amount;
+                const date = new Date(item.timestamp);
+                const dateStr = date.toLocaleDateString("th-TH");
+                const timeStr = date.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const modeBadge = item.mode === 'auto' 
+                    ? `<span class="status-badge green" style="padding:2px 6px;font-size:10px;">AUTO</span>`
+                    : `<span class="status-badge gray" style="padding:2px 6px;font-size:10px;">MANUAL</span>`;
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${item.id || 'device123'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${dateStr} ${timeStr}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--primary-color);">${item.amount} กรัม</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${modeBadge}</td>
+                `;
+                historyTableBody.appendChild(tr);
+            });
+        }
+
+        if (totalFoodSummary) {
+            totalFoodSummary.textContent = `${totalAmount} g`;
+        }
+    }
+
+    if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) return;
+
+            try {
+                const response = await fetch("/api/history", {
+                    method: "DELETE",
+                    headers: { "x-device-id": "device123", "x-device-code": "1234" }
+                });
+                if (response.ok) {
+                    alert("✅ ล้างประวัติเรียบร้อย");
+                    loadHistory();
+                }
+            } catch (err) {
+                alert("❌ ล้างประวัติล้มเหลว");
+            }
+        });
+    }
+
+    loadHistory();
+});

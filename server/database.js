@@ -192,8 +192,8 @@ async function saveSchedules(schedules) {
         // Insert new ones
         for (const item of schedules) {
             await sql`
-                INSERT INTO schedules (device_id, time, enable, created_at)
-                VALUES (${DEVICE_ID}, ${item.time}, ${item.enable ?? true}, CURRENT_TIMESTAMP)
+                INSERT INTO schedules (device_id, time, amount, enable, created_at)
+                VALUES (${DEVICE_ID}, ${item.time}, ${item.amount ?? 10}, ${item.enable ?? true}, CURRENT_TIMESTAMP)
             `;
         }
     } catch (err) {
@@ -204,7 +204,7 @@ async function saveSchedules(schedules) {
 async function getSchedules() {
     try {
         const { rows } = await sql`
-            SELECT id, time, enable, created_at 
+            SELECT id, time, amount, enable, created_at 
             FROM schedules 
             WHERE device_id = ${DEVICE_ID} 
             ORDER BY time ASC
@@ -212,6 +212,7 @@ async function getSchedules() {
         return rows.map(row => ({
             id: String(row.id),
             time: row.time,
+            amount: Number(row.amount),
             enable: row.enable,
             createdAt: row.created_at
         }));
