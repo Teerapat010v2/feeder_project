@@ -828,7 +828,30 @@ document.addEventListener("DOMContentLoaded", () => {
     if (saveCalibrationBtn) {
         saveCalibrationBtn.addEventListener("click", () => {
             alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
-            // Placeholder: can be extended to save feedAmountInput to Vercel DB if needed
         });
+    }
+
+    // --- Sync ปริมาณอาหารที่ใช้ต่อครั้ง ระหว่างหน้า Index และ Schedule ---
+    const feedAmountInput = document.getElementById("feedAmountInput");
+    const indexFeedAmount = document.getElementById("feedAmount");
+
+    function saveFeedAmount(val) {
+        if (!val || val <= 0) return;
+        localStorage.setItem("sharedFeedAmount", val);
+        if (indexFeedAmount && indexFeedAmount.value !== val) indexFeedAmount.value = val;
+        if (feedAmountInput && feedAmountInput.value !== val) feedAmountInput.value = val;
+    }
+
+    const savedAmount = localStorage.getItem("sharedFeedAmount");
+    if (savedAmount) {
+        if (indexFeedAmount) indexFeedAmount.value = savedAmount;
+        if (feedAmountInput) feedAmountInput.value = savedAmount;
+    }
+
+    if (indexFeedAmount) {
+        indexFeedAmount.addEventListener("input", (e) => saveFeedAmount(e.target.value));
+    }
+    if (feedAmountInput) {
+        feedAmountInput.addEventListener("input", (e) => saveFeedAmount(e.target.value));
     }
 });
