@@ -8,9 +8,10 @@
     "dev": "nodemon server/server.js"
   },
   "dependencies": {
+    "@vercel/postgres": "^0.10.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "firebase-admin": "^13.4.0",
+    "pg": "^8.13.1",
     "mqtt": "^5.13.3",
     "socket.io": "^4.8.1"
   },

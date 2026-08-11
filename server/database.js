@@ -1,62 +1,65 @@
-const { db, admin } = require("./firebase");
+const { sql } = require("@vercel/postgres");
 
-// =======================================
-// HELPER: ลบเอกสารทั้งหมดแบบแบ่ง batch
-// (Firestore จำกัด batch ละไม่เกิน 500 operations)
-// =======================================
-
-async function deleteAllDocs(snapshot) {
-
-    const docs = snapshot.docs;
-    const CHUNK_SIZE = 400;
-
-    for (let i = 0; i < docs.length; i += CHUNK_SIZE) {
-
-        const batch = db.batch();
-
-        docs.slice(i, i + CHUNK_SIZE).forEach(doc => {
-            batch.delete(doc.ref);
-        });
-
-        await batch.commit();
-
-    }
-
-}
+const DEVICE_ID = process.env.DEVICE_ID || "device123";
 
 // =======================================
 // DEVICE
 // =======================================
 
 async function updateDevice(data) {
-
-    await db.collection("device")
-        .doc("state")
-        .set({
-            ...data,
-            lastSeen: admin.firestore.FieldValue.serverTimestamp()
-        }, {
-            merge: true
-        });
-
+    try {
+        const device = await getDevice();
+        if (!device) {
+            await sql`
+                INSERT INTO device_state (device_id, online, feeding, weight, food_level, daily_usage, firmware, ip, wifi, last_seen)
+                VALUES (${DEVICE_ID}, ${data.online ?? false}, ${data.feeding ?? false}, ${data.weight ?? 0}, ${data.foodLevel ?? 'green'}, ${data.dailyUsage ?? 100}, ${data.firmware ?? null}, ${data.ip ?? null}, ${data.wifi ?? 0}, CURRENT_TIMESTAMP)
+            `;
+        } else {
+            // Update only provided fields
+            const setClauses = [];
+            if (data.online !== undefined) setClauses.push(`online = ${data.online}`);
+            if (data.feeding !== undefined) setClauses.push(`feeding = ${data.feeding}`);
+            if (data.weight !== undefined) setClauses.push(`weight = ${data.weight}`);
+            if (data.foodLevel !== undefined) setClauses.push(`food_level = '${data.foodLevel}'`);
+            if (data.dailyUsage !== undefined) setClauses.push(`daily_usage = ${data.dailyUsage}`);
+            if (data.firmware !== undefined) setClauses.push(`firmware = '${data.firmware}'`);
+            if (data.ip !== undefined) setClauses.push(`ip = '${data.ip}'`);
+            if (data.wifi !== undefined) setClauses.push(`wifi = ${data.wifi}`);
+            
+            if (setClauses.length > 0) {
+                // Direct interpolation is unsafe for generic usage but safe here since we control the fields
+                await sql.query(`UPDATE device_state SET ${setClauses.join(', ')}, last_seen = CURRENT_TIMESTAMP WHERE device_id = $1`, [DEVICE_ID]);
+            } else {
+                await sql`UPDATE device_state SET last_seen = CURRENT_TIMESTAMP WHERE device_id = ${DEVICE_ID}`;
+            }
+        }
+    } catch (err) {
+        console.error("DB Error (updateDevice):", err);
+    }
 }
 
 async function getDevice() {
-
-    const doc = await db
-        .collection("device")
-        .doc("state")
-        .get();
-
-    if (!doc.exists) {
+    try {
+        const { rows } = await sql`SELECT * FROM device_state WHERE device_id = ${DEVICE_ID}`;
+        if (rows.length === 0) return null;
+        
+        const row = rows[0];
+        return {
+            id: row.device_id,
+            online: row.online,
+            feeding: row.feeding,
+            weight: Number(row.weight),
+            foodLevel: row.food_level,
+            dailyUsage: Number(row.daily_usage),
+            firmware: row.firmware,
+            ip: row.ip,
+            wifi: Number(row.wifi),
+            lastSeen: row.last_seen
+        };
+    } catch (err) {
+        console.error("DB Error (getDevice):", err);
         return null;
     }
-
-    return {
-        id: doc.id,
-        ...doc.data()
-    };
-
 }
 
 // =======================================
@@ -64,28 +67,29 @@ async function getDevice() {
 // =======================================
 
 async function updateWeight(weight) {
-
-    await db.collection("device")
-        .doc("state")
-        .set({
-            weight,
-            foodRemaining: weight
-        }, {
-            merge: true
-        });
-
+    try {
+        await sql`
+            INSERT INTO device_state (device_id, weight, last_seen)
+            VALUES (${DEVICE_ID}, ${weight}, CURRENT_TIMESTAMP)
+            ON CONFLICT (device_id) 
+            DO UPDATE SET weight = EXCLUDED.weight, last_seen = CURRENT_TIMESTAMP
+        `;
+    } catch (err) {
+        console.error("DB Error (updateWeight):", err);
+    }
 }
 
 async function updateDailyUsage(dailyUsage) {
-
-    await db.collection("device")
-        .doc("state")
-        .set({
-            dailyUsage
-        }, {
-            merge: true
-        });
-
+    try {
+        await sql`
+            INSERT INTO device_state (device_id, daily_usage, last_seen)
+            VALUES (${DEVICE_ID}, ${dailyUsage}, CURRENT_TIMESTAMP)
+            ON CONFLICT (device_id) 
+            DO UPDATE SET daily_usage = EXCLUDED.daily_usage, last_seen = CURRENT_TIMESTAMP
+        `;
+    } catch (err) {
+        console.error("DB Error (updateDailyUsage):", err);
+    }
 }
 
 // =======================================
@@ -93,43 +97,43 @@ async function updateDailyUsage(dailyUsage) {
 // =======================================
 
 async function saveHistory(data) {
-
-    await db.collection("history")
-        .add({
-
-            amount: data.amount,
-
-            mode: data.mode || "manual",
-
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
-
-        });
-
+    try {
+        await sql`
+            INSERT INTO feed_history (device_id, amount, mode, timestamp)
+            VALUES (${DEVICE_ID}, ${data.amount}, ${data.mode || 'manual'}, CURRENT_TIMESTAMP)
+        `;
+    } catch (err) {
+        console.error("DB Error (saveHistory):", err);
+    }
 }
 
 async function getHistory(limit = 100) {
-
-    const snapshot = await db
-        .collection("history")
-        .orderBy("timestamp", "desc")
-        .limit(limit)
-        .get();
-
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-    }));
-
+    try {
+        const { rows } = await sql`
+            SELECT id, amount, mode, timestamp 
+            FROM feed_history 
+            WHERE device_id = ${DEVICE_ID} 
+            ORDER BY timestamp DESC 
+            LIMIT ${limit}
+        `;
+        return rows.map(row => ({
+            id: String(row.id),
+            amount: Number(row.amount),
+            mode: row.mode,
+            timestamp: row.timestamp
+        }));
+    } catch (err) {
+        console.error("DB Error (getHistory):", err);
+        return [];
+    }
 }
 
 async function clearHistory() {
-
-    const snapshot = await db
-        .collection("history")
-        .get();
-
-    await deleteAllDocs(snapshot);
-
+    try {
+        await sql`DELETE FROM feed_history WHERE device_id = ${DEVICE_ID}`;
+    } catch (err) {
+        console.error("DB Error (clearHistory):", err);
+    }
 }
 
 // =======================================
@@ -137,43 +141,43 @@ async function clearHistory() {
 // =======================================
 
 async function saveAlert(data) {
-
-    await db.collection("alerts")
-        .add({
-
-            message: data.message,
-
-            level: data.level || "info",
-
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
-
-        });
-
+    try {
+        await sql`
+            INSERT INTO alerts (device_id, message, level, timestamp)
+            VALUES (${DEVICE_ID}, ${data.message}, ${data.level || 'info'}, CURRENT_TIMESTAMP)
+        `;
+    } catch (err) {
+        console.error("DB Error (saveAlert):", err);
+    }
 }
 
 async function getAlerts(limit = 20) {
-
-    const snapshot = await db
-        .collection("alerts")
-        .orderBy("timestamp", "desc")
-        .limit(limit)
-        .get();
-
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-    }));
-
+    try {
+        const { rows } = await sql`
+            SELECT id, message, level, timestamp 
+            FROM alerts 
+            WHERE device_id = ${DEVICE_ID} 
+            ORDER BY timestamp DESC 
+            LIMIT ${limit}
+        `;
+        return rows.map(row => ({
+            id: String(row.id),
+            message: row.message,
+            level: row.level,
+            timestamp: row.timestamp
+        }));
+    } catch (err) {
+        console.error("DB Error (getAlerts):", err);
+        return [];
+    }
 }
 
 async function clearAlerts() {
-
-    const snapshot = await db
-        .collection("alerts")
-        .get();
-
-    await deleteAllDocs(snapshot);
-
+    try {
+        await sql`DELETE FROM alerts WHERE device_id = ${DEVICE_ID}`;
+    } catch (err) {
+        console.error("DB Error (clearAlerts):", err);
+    }
 }
 
 // =======================================
@@ -181,47 +185,40 @@ async function clearAlerts() {
 // =======================================
 
 async function saveSchedules(schedules) {
+    try {
+        // Delete old schedules
+        await sql`DELETE FROM schedules WHERE device_id = ${DEVICE_ID}`;
 
-    const snapshot = await db
-        .collection("schedule")
-        .get();
-
-    await deleteAllDocs(snapshot);
-
-    const batch = db.batch();
-
-    schedules.forEach(item => {
-
-        const ref = db.collection("schedule").doc();
-
-        batch.set(ref, {
-
-            time: item.time,
-
-            enable: item.enable ?? true,
-
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-
-        });
-
-    });
-
-    await batch.commit();
-
+        // Insert new ones
+        for (const item of schedules) {
+            await sql`
+                INSERT INTO schedules (device_id, time, enable, created_at)
+                VALUES (${DEVICE_ID}, ${item.time}, ${item.enable ?? true}, CURRENT_TIMESTAMP)
+            `;
+        }
+    } catch (err) {
+        console.error("DB Error (saveSchedules):", err);
+    }
 }
 
 async function getSchedules() {
-
-    const snapshot = await db
-        .collection("schedule")
-        .orderBy("time")
-        .get();
-
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-    }));
-
+    try {
+        const { rows } = await sql`
+            SELECT id, time, enable, created_at 
+            FROM schedules 
+            WHERE device_id = ${DEVICE_ID} 
+            ORDER BY time ASC
+        `;
+        return rows.map(row => ({
+            id: String(row.id),
+            time: row.time,
+            enable: row.enable,
+            createdAt: row.created_at
+        }));
+    } catch (err) {
+        console.error("DB Error (getSchedules):", err);
+        return [];
+    }
 }
 
 // =======================================
@@ -229,27 +226,16 @@ async function getSchedules() {
 // =======================================
 
 module.exports = {
-
-    // Device
     updateDevice,
     getDevice,
-
-    // Weight
     updateWeight,
     updateDailyUsage,
-
-    // History
     saveHistory,
     getHistory,
     clearHistory,
-
-    // Alert
     saveAlert,
     getAlerts,
     clearAlerts,
-
-    // Schedule
     saveSchedules,
     getSchedules
-
 };

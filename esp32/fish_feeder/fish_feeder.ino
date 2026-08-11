@@ -7,6 +7,9 @@
 #include <SPIFFS.h>
 #include <Wire.h>
 #include "HX711.h"
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include "secrets.h"
 
 // =================================================================
 // 📌 1. โซนตั้งค่าพินฮาร์ดแวร์ (HARDWARE PIN CONFIG)
@@ -34,10 +37,13 @@ HX711 scale;
 WebServer server(80);           
 DNSServer dnsServer;            
 Preferences preferences;        
+WiFiClientSecure espClient;
+PubSubClient mqttClient(espClient);
 
 bool isFeeding = false;         
 unsigned long feedStartTime = 0;
 unsigned long feedDuration = 0; 
+unsigned long lastMqttPublish = 0;
 
 // --- ประกาศชื่อฟังก์ชันล่วงหน้า (Function Prototypes) ---
 void triggerFeeding(int amountGrams);
@@ -54,6 +60,55 @@ void handleDummySuccess();
 bool handleFileRead(String path);
 void setRGB(bool r, bool g, bool b);
 void testMotorSerial();
+
+// =================================================================
+// 📌 3.5. ฟังก์ชัน MQTT Callback & Connect
+// =================================================================
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  String message = "";
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.print("📩 MQTT Topic: ");
+  Serial.print(topic);
+  Serial.print(" | Payload: ");
+  Serial.println(message);
+
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, message);
+  if (error) {
+    Serial.println("❌ Parse JSON ไม่สำเร็จ");
+    return;
+  }
+
+  const char* action = doc["action"];
+  if (action) {
+    if (strcmp(action, "FEED") == 0) {
+      int amount = doc["amount"] | 10;
+      triggerFeeding(amount);
+    } else if (strcmp(action, "EMERGENCY_STOP") == 0) {
+      stopFeeding();
+    }
+  }
+}
+
+void connectMQTT() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  
+  while (!mqttClient.connected()) {
+    Serial.print("📡 กำลังเชื่อมต่อ MQTT (HiveMQ)... ");
+    if (mqttClient.connect(DEVICE_ID, MQTT_USER, MQTT_PASS)) {
+      Serial.println("✅ เชื่อมต่อ MQTT สำเร็จ");
+      String cmdTopic = "fishfeeder/" + String(DEVICE_ID) + "/cmd/#";
+      mqttClient.subscribe(cmdTopic.c_str());
+    } else {
+      Serial.print("❌ ล้มเหลว State=");
+      Serial.print(mqttClient.state());
+      Serial.println(" รอ 5 วินาทีเพื่อลองใหม่");
+      delay(5000);
+    }
+  }
+}
 
 // =================================================================
 // 📌 4. ฟังก์ชันเปิด/ปิดไฟ RGB LED สถานะ
@@ -87,6 +142,8 @@ bool handleFileRead(String path) {
   String contentType = getContentType(path);
   if (SPIFFS.exists(path)) {
     File file = SPIFFS.open(path, "r");
+    // เพิ่ม Cache-Control เพื่อให้เบราว์เซอร์จำไฟล์ CSS/JS ไว้ ไม่ต้องโหลดใหม่ทุกครั้ง (ทำให้หน้าเว็บโหลดเร็วขึ้นมาก)
+    server.sendHeader("Cache-Control", "max-age=86400");
     server.streamFile(file, contentType);
     file.close();
     return true;
@@ -122,6 +179,10 @@ void setup() {
   Serial.println("✅ HX711 Loadcell Ready");
 
   WiFi.mode(WIFI_AP_STA);
+  
+  espClient.setInsecure(); // ไม่ตรวจสอบ SSL Cert
+  mqttClient.setServer(MQTT_HOST, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
   
   preferences.begin("wifi_config", true);
   String savedApSsid = preferences.getString("ap_ssid", "FishFeeder-AP");
@@ -224,6 +285,31 @@ void loop() {
 
   dnsServer.processNextRequest(); 
   server.handleClient();          
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!mqttClient.connected()) {
+      connectMQTT();
+    }
+    mqttClient.loop();
+
+    if (millis() - lastMqttPublish >= 5000) {
+      lastMqttPublish = millis();
+      float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
+      if (weight < 0) weight = 0.0;
+      
+      StaticJsonDocument<200> doc;
+      doc["online"] = true;
+      doc["weight"] = weight;
+      doc["current_weight"] = weight;
+      doc["status"] = isFeeding ? "FEEDING" : "IDLE";
+      
+      String payload;
+      serializeJson(doc, payload);
+      
+      String statusTopic = "fishfeeder/" + String(DEVICE_ID) + "/status";
+      mqttClient.publish(statusTopic.c_str(), payload.c_str());
+    }
+  }
 
   if (isFeeding) {
     setRGB(false, true, false);   

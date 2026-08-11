@@ -1,5 +1,5 @@
 // =====================================
-// REAL-TIME WEIGHT & FEED CONTROL (ESP32 LOCAL MODE)
+// REAL-TIME WEIGHT & FEED CONTROL (DUAL MODE: LOCAL & ONLINE)
 // =====================================
 document.addEventListener("DOMContentLoaded", () => {
     // --- 1. ประกาศตัวแปร DOM Elements จาก index.html ---
@@ -7,63 +7,67 @@ document.addEventListener("DOMContentLoaded", () => {
     const tankProgressBar = document.getElementById("tankProgressBar");
     const daysRemainingText = document.getElementById("daysRemainingText");
     const foodStatusBadge = document.getElementById("foodStatusBadge");
+    const connStatus = document.getElementById("connectionStatus");
     
     const feedBtn = document.getElementById("feedBtn");
     const stopBtn = document.getElementById("stopBtn");
     const feedAmount = document.getElementById("feedAmount");
     const modeToggle = document.getElementById("modeToggle");
 
-    const MAX_CAPACITY_GRAMS = 500; // ความจุถังอาหารสูงสุด (กรัม)
-    const DAILY_USAGE_GRAMS = 20;   // ปริมาณการใช้อาหารต่อวันโดยประมาณ
+    const MAX_CAPACITY_GRAMS = 500; 
+    const DAILY_USAGE_GRAMS = 20;   
 
-    // --- 2. ฟังก์ชันดึงน้ำหนักจริงจาก ESP32 (/api/status) ---
-    async function fetchRealtimeWeight() {
-        try {
-            const response = await fetch("/api/status");
-            if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
+    // --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
+    // ถ้ารันบน IP (192.168.x.x) ให้ใช้ Local Mode ถ้าเป็นโดเมน (vercel) ให้ใช้ Online Mode
+    const isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
+    
+    // --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
+    const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
+    const MQTT_OPTIONS = {
+        username: "teerapat",
+        password: "Teerapat99",
+        clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
+    };
+    const DEVICE_ID = "device123";
+    const TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
+    const TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
+    
+    let mqttClient = null;
+    let localFetchTimer = null;
 
-            const data = await response.json();
-            const weight = Math.max(0, parseFloat(data.current_weight || 0));
+    // --- ฟังก์ชันอัปเดต UI หน้าจอ ---
+    function updateDashboardUI(weight, isOnline) {
+        weight = Math.max(0, parseFloat(weight || 0));
 
-            const connStatus = document.getElementById("connectionStatus");
-            if (connStatus) {
-                connStatus.className = "status-badge local";
-                connStatus.innerText = "● Local";
-            }
-
-            // อัปเดตตัวเลขน้ำหนัก (เช่น 45.2 g)
-            if (tankWeightText) {
-                tankWeightText.textContent = `${weight.toFixed(1)} g`;
-            }
-
-            // อัปเดตหลอด Progress Bar
-            if (tankProgressBar) {
-                const percent = Math.min(Math.max((weight / MAX_CAPACITY_GRAMS) * 100, 0), 100);
-                tankProgressBar.style.width = `${percent}%`;
-            }
-
-            // คำนวณจำนวนวันที่เหลือ
-            if (daysRemainingText) {
-                const daysLeft = (weight / DAILY_USAGE_GRAMS).toFixed(1);
-                daysRemainingText.textContent = `${weight > 0 ? daysLeft : "0.0"} วัน`;
-            }
-
-            // อัปเดตป้ายสถานะอาหาร
-            if (foodStatusBadge) {
-                if (weight <= 10) {
-                    foodStatusBadge.textContent = "🔴 เติมอาหาร";
-                    foodStatusBadge.className = "status-badge red";
-                } else {
-                    foodStatusBadge.textContent = "🟢 ปกติ";
-                    foodStatusBadge.className = "status-badge green";
-                }
-            }
-        } catch (err) {
-            console.warn("⚡ กำลังเชื่อมต่อกับบอร์ด ESP32...");
-            const connStatus = document.getElementById("connectionStatus");
-            if (connStatus) {
+        if (connStatus) {
+            if (isOnline) {
+                connStatus.className = isLocalMode ? "status-badge local" : "status-badge green";
+                connStatus.innerText = isLocalMode ? "● Local" : "● Online";
+            } else {
                 connStatus.className = "status-badge offline";
                 connStatus.innerText = "● Offline";
+            }
+        }
+
+        if (tankWeightText) tankWeightText.textContent = `${weight.toFixed(1)} g`;
+
+        if (tankProgressBar) {
+            const percent = Math.min(Math.max((weight / MAX_CAPACITY_GRAMS) * 100, 0), 100);
+            tankProgressBar.style.width = `${percent}%`;
+        }
+
+        if (daysRemainingText) {
+            const daysLeft = (weight / DAILY_USAGE_GRAMS).toFixed(1);
+            daysRemainingText.textContent = `${weight > 0 ? daysLeft : "0.0"} วัน`;
+        }
+
+        if (foodStatusBadge) {
+            if (weight <= 10) {
+                foodStatusBadge.textContent = "🔴 เติมอาหาร";
+                foodStatusBadge.className = "status-badge red";
+            } else {
+                foodStatusBadge.textContent = "🟢 ปกติ";
+                foodStatusBadge.className = "status-badge green";
             }
         }
     }
@@ -91,7 +95,59 @@ document.addEventListener("DOMContentLoaded", () => {
         updateModeUI(modeToggle.checked);
     }
 
-    // --- 3. ฟังก์ชันปุ่มสั่งให้อาหาร (/local-feed?amount=...) ---
+    // --- เริ่มต้นระบบตามโหมด ---
+    if (!isLocalMode && typeof mqtt !== 'undefined') {
+        // [ONLINE MODE] ใช้ MQTT
+        console.log("🌐 กำลังเชื่อมต่อ Online Mode (HiveMQ)...");
+        mqttClient = mqtt.connect(MQTT_BROKER, MQTT_OPTIONS);
+
+        mqttClient.on('connect', () => {
+            console.log("✅ เชื่อมต่อ HiveMQ สำเร็จ");
+            mqttClient.subscribe(TOPIC_STATUS);
+            if (connStatus) {
+                connStatus.className = "status-badge green";
+                connStatus.innerText = "● Online";
+            }
+        });
+
+        mqttClient.on('message', (topic, message) => {
+            if (topic === TOPIC_STATUS) {
+                try {
+                    const data = JSON.parse(message.toString());
+                    updateDashboardUI(data.current_weight, true);
+                } catch (e) {
+                    console.error("❌ แปลงข้อมูล MQTT ล้มเหลว", e);
+                }
+            }
+        });
+
+        mqttClient.on('error', (err) => {
+            console.error("❌ MQTT Error:", err);
+        });
+
+        mqttClient.on('offline', () => {
+            updateDashboardUI(0, false);
+        });
+
+    } else {
+        // [LOCAL MODE] ใช้ HTTP Fetch
+        console.log("🏠 กำลังใช้งาน Local Mode...");
+        async function fetchRealtimeWeight() {
+            try {
+                const response = await fetch("/api/status");
+                if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
+                const data = await response.json();
+                updateDashboardUI(data.current_weight, true);
+            } catch (err) {
+                console.warn("⚡ กำลังเชื่อมต่อกับบอร์ด ESP32...");
+                updateDashboardUI(0, false);
+            }
+        }
+        fetchRealtimeWeight();
+        localFetchTimer = setInterval(fetchRealtimeWeight, 1500);
+    }
+
+    // --- 3. ฟังก์ชันปุ่มสั่งให้อาหาร ---
     if (feedBtn) {
         feedBtn.addEventListener("click", async () => {
             const amount = Number(feedAmount?.value || 10);
@@ -105,35 +161,47 @@ document.addEventListener("DOMContentLoaded", () => {
             feedBtn.textContent = "⏳ กำลังปล่อยอาหาร...";
 
             try {
-                const response = await fetch(`/local-feed?amount=${amount}`);
-                const result = await response.json();
-                alert(response.ok ? `✅ ${result.message}` : "❌ สั่งให้อาหารไม่สำเร็จ");
+                if (!isLocalMode && mqttClient && mqttClient.connected) {
+                    // ส่งคำสั่งผ่าน MQTT (Online)
+                    const cmdPayload = JSON.stringify({ action: "FEED", amount: amount });
+                    mqttClient.publish(TOPIC_CMD, cmdPayload);
+                    alert(`✅ ส่งคำสั่งให้อาหาร ${amount} กรัมผ่านระบบออนไลน์แล้ว`);
+                } else {
+                    // ส่งคำสั่งผ่าน HTTP (Local)
+                    const response = await fetch(`/local-feed?amount=${amount}`);
+                    const result = await response.json();
+                    alert(response.ok ? `✅ ${result.message}` : "❌ สั่งให้อาหารไม่สำเร็จ");
+                }
             } catch (err) {
-                alert("❌ ไม่สามารถส่งคำสั่งไปยัง ESP32 ได้");
+                alert("❌ ไม่สามารถส่งคำสั่งได้");
             } finally {
-                // ปลดล็อกปุ่มกลับมาถ้ายังอยู่ในโหมด Manual
                 feedBtn.disabled = !(modeToggle && modeToggle.checked);
                 feedBtn.textContent = originalText;
             }
         });
     }
 
-    // --- 4. ฟังก์ชันปุ่มหยุดฉุกเฉิน (/local-stop) ---
+    // --- 4. ฟังก์ชันปุ่มหยุดฉุกเฉิน ---
     if (stopBtn) {
         stopBtn.addEventListener("click", async () => {
             try {
-                const response = await fetch("/local-stop");
-                const result = await response.json();
-                alert(`🛑 ${result.message}`);
+                if (!isLocalMode && mqttClient && mqttClient.connected) {
+                    // ส่งคำสั่งผ่าน MQTT (Online)
+                    const cmdPayload = JSON.stringify({ action: "EMERGENCY_STOP" });
+                    mqttClient.publish(TOPIC_CMD, cmdPayload);
+                    alert("🛑 ส่งคำสั่งหยุดฉุกเฉินผ่านระบบออนไลน์แล้ว");
+                } else {
+                    // ส่งคำสั่งผ่าน HTTP (Local)
+                    const response = await fetch("/local-stop");
+                    const result = await response.json();
+                    alert(`🛑 ${result.message}`);
+                }
             } catch (err) {
                 alert("❌ สั่งหยุดฉุกเฉินไม่สำเร็จ");
             }
         });
     }
 
-    // เริ่มทำงานดึงน้ำหนักทันที และวนลูปอัปเดตทุก 1.5 วินาที
-    fetchRealtimeWeight();
-    setInterval(fetchRealtimeWeight, 1500);
 });
 // =====================================
 // AP WIFI SETTINGS LOGIC (settings.html)
