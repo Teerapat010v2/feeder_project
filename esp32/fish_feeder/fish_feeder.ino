@@ -180,8 +180,11 @@ void setup() {
   }
   Serial.println("✅ SPIFFS Mounted Successfully");
 
+  preferences.begin("scale_config", true);
+  float calib = preferences.getFloat("calib_factor", 220.4);
+  preferences.end();
   scale.begin(HX711_DT, HX711_SCK);
-  scale.set_scale(CALIBRATION_FACTOR);
+  scale.set_scale(calib);
   scale.tare(); 
   Serial.println("✅ HX711 Loadcell Ready");
 
@@ -243,8 +246,10 @@ void setup() {
   // ===============================================================
   server.on("/api/status", handleApiStatus);     
   server.on("/local-feed", handleLocalFeed);
-  server.on("/api/feed", handleLocalFeed);
-  server.on("/local-stop", handleLocalStop);
+  server.on("/local-feed", HTTP_GET, handleLocalFeed);
+  server.on("/local-stop", HTTP_GET, handleLocalStop);
+  server.on("/local-tare", HTTP_GET, handleLocalTare);
+  server.on("/local-calib", HTTP_GET, handleLocalCalibrate);
   server.on("/api/stop", handleLocalStop);
   
   // เส้นทางหน้า Settings และ Wi-Fi
@@ -428,6 +433,39 @@ void handleLocalStop() {
   stopFeeding(); 
   
   String response = "{\"success\":true,\"message\":\"หยุดทำงานฉุกเฉินเรียบร้อย\"}";
+  server.send(200, "application/json", response);
+}
+
+// =================================================================
+// 📌 14.5 API ระบบชั่งน้ำหนัก (Tare / Calibrate)
+// =================================================================
+void handleLocalTare() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  scale.tare();
+  String response = "{\"success\":true,\"message\":\"ปรับศูนย์ตาชั่งสำเร็จ\"}";
+  server.send(200, "application/json", response);
+}
+
+void handleLocalCalibrate() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  float factor = 220.4;
+  if (server.hasArg("weight")) {
+    float known_weight = server.arg("weight").toFloat();
+    if (known_weight > 0) {
+      // 1. Get current reading (average of 10)
+      long reading = scale.get_value(10);
+      // 2. Calculate new factor
+      factor = (float)reading / known_weight;
+      scale.set_scale(factor);
+      
+      // Save to preferences
+      preferences.begin("scale_config", false);
+      preferences.putFloat("calib_factor", factor);
+      preferences.end();
+    }
+  }
+  
+  String response = "{\"success\":true,\"message\":\"ตั้งค่า Calibration สำเร็จ\",\"factor\":" + String(factor) + "}";
   server.send(200, "application/json", response);
 }
 

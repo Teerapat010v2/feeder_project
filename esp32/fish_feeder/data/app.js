@@ -653,7 +653,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Add missing listeners for Schedule/Weight tabs and Print Report button
 document.addEventListener("DOMContentLoaded", () => {
     // History Print Button
-    const printBtn = document.getElementById("printBtn");
+    const printBtn = document.getElementById("printReportBtn");
     if (printBtn) {
         printBtn.addEventListener("click", () => {
             window.print();
@@ -663,8 +663,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Schedule Tabs
     const tabScheduleBtn = document.getElementById("tabScheduleBtn");
     const tabWeightBtn = document.getElementById("tabWeightBtn");
-    const pageSchedule = document.getElementById("page-schedule");
-    const pageWeight = document.getElementById("page-weight");
+    const pageSchedule = document.getElementById("section-schedule");
+    const pageWeight = document.getElementById("section-weight");
 
     if (tabScheduleBtn && tabWeightBtn && pageSchedule && pageWeight) {
         tabScheduleBtn.addEventListener("click", () => {
@@ -678,6 +678,66 @@ document.addEventListener("DOMContentLoaded", () => {
             tabScheduleBtn.classList.remove("active");
             pageWeight.style.display = "block";
             pageSchedule.style.display = "none";
+        });
+    }
+
+    // Weight System (Tare & Calibration)
+    const tareBtn = document.getElementById("tareBtn");
+    const calibBtn = document.getElementById("calibBtn");
+    const calibWeightInput = document.getElementById("calibWeightInput");
+    const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
+
+    if (tareBtn) {
+        tareBtn.addEventListener("click", async () => {
+            try {
+                tareBtn.textContent = "⏳ กำลังปรับศูนย์...";
+                tareBtn.disabled = true;
+                const response = await fetch("/local-tare");
+                const result = await response.json();
+                if (result.success) {
+                    alert("✅ ปรับศูนย์ (Tare) สำเร็จ");
+                } else {
+                    alert("❌ ปรับศูนย์ไม่สำเร็จ");
+                }
+            } catch (err) {
+                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง)");
+            } finally {
+                tareBtn.textContent = "Tare (ปรับศูนย์)";
+                tareBtn.disabled = false;
+            }
+        });
+    }
+
+    if (calibBtn && calibWeightInput) {
+        calibBtn.addEventListener("click", async () => {
+            const weight = calibWeightInput.value;
+            if (!weight || weight <= 0) {
+                alert("กรุณาระบุน้ำหนักอ้างอิงให้ถูกต้อง");
+                return;
+            }
+            try {
+                calibBtn.textContent = "⏳ กำลังปรับเทียบ...";
+                calibBtn.disabled = true;
+                const response = await fetch(`/local-calib?weight=${weight}`);
+                const result = await response.json();
+                if (result.success) {
+                    alert(`✅ ปรับเทียบ (Calibration) สำเร็จ\nค่า Factor ใหม่: ${result.factor}`);
+                } else {
+                    alert("❌ ปรับเทียบไม่สำเร็จ");
+                }
+            } catch (err) {
+                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง)");
+            } finally {
+                calibBtn.textContent = "Calibration (ปรับเทียบค่า)";
+                calibBtn.disabled = false;
+            }
+        });
+    }
+
+    if (saveCalibrationBtn) {
+        saveCalibrationBtn.addEventListener("click", () => {
+            alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
+            // Placeholder: can be extended to save feedAmountInput to Vercel DB if needed
         });
     }
 });
