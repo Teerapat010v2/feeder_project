@@ -848,57 +848,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// =====================================
-// SETTINGS PAGE - WIFI SCAN & CONNECT LOGIC
-// =====================================
-document.addEventListener("DOMContentLoaded", () => {
-    const connectWifiBtn = document.getElementById("connectWifiBtn");
-    const homeSsidInput = document.getElementById("homeSsidInput");
-    const homePasswordInput = document.getElementById("homePasswordInput");
-
-    // 2. กดปุ่ม บันทึก / เชื่อมต่อ
-    if (connectWifiBtn) {
-        connectWifiBtn.addEventListener("click", async () => {
-            const ssid = homeSsidInput?.value.trim();
-            const pass = homePasswordInput?.value.trim() || "";
-
-            if (!ssid) {
-                alert("กรุณาเลือกหรือกรอกชื่อ SSID Wi-Fi บ้าน");
-                return;
-            }
-
-            connectWifiBtn.disabled = true;
-            connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
-
-            try {
-                // ส่งผ่าน API ของ Vercel (HTTPS) เพื่อป้องกันเบราว์เซอร์บล็อก
-                const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" }
-                });
-            
-                const resData = await response.json();
-
-                if (resData.success) {
-                    alert("✅ ส่งข้อมูลสำเร็จ! ESP32 กำลังเชื่อมต่อ Wi-Fi บ้าน");
-                } else {
-                    alert(`❌ ${resData.message || "บันทึกไม่สำเร็จ"}`);
-                }
-            } catch (err) {
-                // หากยิง API ไม่ผ่าน ให้ fallback ไปลองส่งตรงอีกรอบ
-                try {
-                    await fetch(`http://192.168.4.1/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { mode: 'no-cors' });
-                    alert("✅ ส่งคำสั่งไปยัง ESP32 เรียบร้อยแล้ว!");
-                } catch (e) {
-                    alert("❌ ติดต่อ ESP32 ไม่ได้! กรุณาตรวจสอบว่าเชื่อมต่อ Wi-Fi 'FishFeeder-Setup' อยู่หรือไม่");
-                }
-            } finally {
-                connectWifiBtn.disabled = false;
-                connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
-            }
-        });
-    }
-});
 
 // =====================================
 // REAL-TIME WEIGHT UPDATE LOGIC
