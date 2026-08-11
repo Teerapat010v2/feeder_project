@@ -559,9 +559,13 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
             history.forEach(item => {
                 totalAmount += item.amount;
-                const date = new Date(item.timestamp);
-                const dateStr = date.toLocaleDateString("th-TH");
-                const timeStr = date.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                let ts = item.timestamp;
+                if (typeof ts === 'string' && !ts.includes('Z')) {
+                    ts = ts.replace(' ', 'T') + 'Z';
+                }
+                const date = new Date(ts);
+                const dateStr = date.toLocaleDateString("th-TH", { timeZone: 'Asia/Bangkok' });
+                const timeStr = date.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
                 const modeBadge = item.mode === 'auto' 
                     ? `<span class="status-badge green" style="padding:2px 6px;font-size:10px;">AUTO</span>`
                     : `<span class="status-badge gray" style="padding:2px 6px;font-size:10px;">MANUAL</span>`;
@@ -602,4 +606,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     loadHistory();
+});
+
+// Add missing listeners for Schedule/Weight tabs and Print Report button
+document.addEventListener("DOMContentLoaded", () => {
+    // History Print Button
+    const printBtn = document.getElementById("printBtn");
+    if (printBtn) {
+        printBtn.addEventListener("click", () => {
+            window.print();
+        });
+    }
+
+    // Schedule Tabs
+    const tabScheduleBtn = document.getElementById("tabScheduleBtn");
+    const tabWeightBtn = document.getElementById("tabWeightBtn");
+    const pageSchedule = document.getElementById("page-schedule");
+    const pageWeight = document.getElementById("page-weight");
+
+    if (tabScheduleBtn && tabWeightBtn && pageSchedule && pageWeight) {
+        tabScheduleBtn.addEventListener("click", () => {
+            tabScheduleBtn.classList.add("active");
+            tabWeightBtn.classList.remove("active");
+            pageSchedule.style.display = "block";
+            pageWeight.style.display = "none";
+        });
+        tabWeightBtn.addEventListener("click", () => {
+            tabWeightBtn.classList.add("active");
+            tabScheduleBtn.classList.remove("active");
+            pageWeight.style.display = "block";
+            pageSchedule.style.display = "none";
+        });
+    }
 });
