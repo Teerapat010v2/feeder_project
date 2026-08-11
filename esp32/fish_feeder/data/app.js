@@ -28,9 +28,9 @@ document.addEventListener("DOMContentLoaded", () => {
         password: "Teerapat99",
         clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
     };
-    const DEVICE_ID = "device123";
-    const TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
-    const TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
+    let DEVICE_ID = localStorage.getItem("deviceId") || "device123";
+    let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
+    let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
     
     let mqttClient = null;
     let localFetchTimer = null;
@@ -137,6 +137,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 const response = await fetch("/api/status");
                 if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
                 const data = await response.json();
+                
+                if (data.deviceId && data.deviceId !== localStorage.getItem("deviceId")) {
+                    localStorage.setItem("deviceId", data.deviceId);
+                    DEVICE_ID = data.deviceId;
+                    console.log("Device ID synced:", DEVICE_ID);
+                }
+
                 updateDashboardUI(data.current_weight, true);
             } catch (err) {
                 console.warn("⚡ กำลังเชื่อมต่อกับบอร์ด ESP32...");
@@ -223,6 +230,24 @@ document.addEventListener("DOMContentLoaded", () => {
     const resetApBtn = document.getElementById("resetApBtn");
     const apSsidInput = document.getElementById("apSsidInput");
     const apPasswordInput = document.getElementById("apPasswordInput");
+    const deviceIdInput = document.getElementById("deviceIdInput");
+    const saveDeviceIdBtn = document.getElementById("saveDeviceIdBtn");
+
+    // โหลด Device ID เดิมมาแสดง
+    if (deviceIdInput) {
+        deviceIdInput.value = localStorage.getItem("deviceId") || "device123";
+    }
+
+    if (saveDeviceIdBtn) {
+        saveDeviceIdBtn.addEventListener("click", () => {
+            const newId = deviceIdInput.value.trim();
+            if (newId) {
+                localStorage.setItem("deviceId", newId);
+                alert("✅ บันทึก Device ID เรียบร้อยแล้ว\nระบบจะใช้ ID นี้ในการควบคุมออนไลน์");
+                location.reload();
+            }
+        });
+    }
 
     // 1. กดปุ่มบันทึกชื่อ/รหัสผ่าน Wi-Fi ของตัวเครื่อง (AP Mode)
     if (saveApBtn) {
@@ -415,20 +440,30 @@ document.addEventListener("DOMContentLoaded", () => {
             const row = document.createElement("div");
             row.className = "schedule-row";
             row.innerHTML = `
-                <div class="schedule-time-col">
-                    <input type="time" class="time-input" value="${item.time}" data-index="${index}" required>
+                <div class="schedule-time-col" style="display:flex; align-items:center; background:#f0f2f5; padding:5px 15px; border-radius:12px; gap:5px;">
+                    <select class="time-hour-input" data-index="${index}" style="appearance:none; border:none; background:transparent; font-size:24px; font-weight:bold; color:var(--primary-color); outline:none; text-align:center;">
+                        ${Array.from({length:24}, (_,i) => `<option value="${i.toString().padStart(2,'0')}" ${item.time.split(':')[0] === i.toString().padStart(2,'0') ? 'selected' : ''}>${i.toString().padStart(2,'0')}</option>`).join('')}
+                    </select>
+                    <span style="font-size:24px; font-weight:bold; color:var(--text-color);">:</span>
+                    <select class="time-minute-input" data-index="${index}" style="appearance:none; border:none; background:transparent; font-size:24px; font-weight:bold; color:var(--primary-color); outline:none; text-align:center;">
+                        ${Array.from({length:60}, (_,i) => `<option value="${i.toString().padStart(2,'0')}" ${item.time.split(':')[1] === i.toString().padStart(2,'0') ? 'selected' : ''}>${i.toString().padStart(2,'0')}</option>`).join('')}
+                    </select>
+                    <span style="font-size:14px; margin-left:5px; color:var(--text-muted);">น.</span>
                 </div>
-                <div class="schedule-amount-col" style="display: flex; align-items: center; gap: 5px;">
-                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="500" data-index="${index}" style="width: 60px; padding: 5px;" required>
-                    <span style="font-size: 12px; color: var(--text-muted);">กรัม</span>
+                <div class="schedule-amount-col" style="display:flex; align-items:center; background:#f0f2f5; padding:5px 15px; border-radius:12px; gap:8px;">
+                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="500" data-index="${index}" style="border:none; background:transparent; font-size:18px; font-weight:bold; color:var(--primary-color); width:50px; text-align:center; outline:none;" required>
+                    <span style="font-size: 14px; color: var(--text-muted);">กรัม</span>
                 </div>
-                <div class="schedule-actions">
-                    <label class="toggle-switch">
-                        <input type="checkbox" class="enable-toggle" data-index="${index}" ${item.enable ? "checked" : ""}>
-                        <span class="slider"></span>
+                <div class="schedule-actions" style="display:flex; align-items:center; gap:15px;">
+                    <label class="toggle-switch-labeled" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" class="enable-toggle" data-index="${index}" ${item.enable ? "checked" : ""} style="display:none;">
+                        <div class="toggle-ui" style="width:50px; height:26px; border-radius:13px; background:${item.enable ? 'var(--primary-color)' : '#ccc'}; position:relative; transition:0.3s;">
+                            <div class="toggle-knob" style="width:22px; height:22px; border-radius:50%; background:#fff; position:absolute; top:2px; left:${item.enable ? '26px' : '2px'}; transition:0.3s;"></div>
+                        </div>
+                        <span class="toggle-label" style="font-size:14px; font-weight:bold; color:${item.enable ? 'var(--primary-color)' : 'var(--text-muted)'}; min-width:30px;">${item.enable ? "เปิด" : "ปิด"}</span>
                     </label>
-                    <button class="btn-icon-sm btn-delete-schedule" data-index="${index}">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <button class="btn-icon-sm btn-delete-schedule" data-index="${index}" style="background:#ffecec; color:#ef4444; border-radius:8px; padding:8px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </div>
             `;
@@ -436,9 +471,19 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         // ผูก Event Listener ใหม่
-        document.querySelectorAll(".time-input").forEach(input => {
-            input.addEventListener("change", (e) => {
-                schedules[e.target.dataset.index].time = e.target.value;
+        document.querySelectorAll(".time-hour-input").forEach(select => {
+            select.addEventListener("change", (e) => {
+                const idx = e.target.dataset.index;
+                const min = document.querySelector(`.time-minute-input[data-index="${idx}"]`).value;
+                schedules[idx].time = `${e.target.value}:${min}`;
+            });
+        });
+
+        document.querySelectorAll(".time-minute-input").forEach(select => {
+            select.addEventListener("change", (e) => {
+                const idx = e.target.dataset.index;
+                const hr = document.querySelector(`.time-hour-input[data-index="${idx}"]`).value;
+                schedules[idx].time = `${hr}:${e.target.value}`;
             });
         });
 
@@ -450,7 +495,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
         document.querySelectorAll(".enable-toggle").forEach(toggle => {
             toggle.addEventListener("change", (e) => {
-                schedules[e.target.dataset.index].enable = e.target.checked;
+                const isChecked = e.target.checked;
+                schedules[e.target.dataset.index].enable = isChecked;
+                
+                // Update UI visually without re-rendering everything
+                const label = e.target.closest('label');
+                const ui = label.querySelector('.toggle-ui');
+                const knob = label.querySelector('.toggle-knob');
+                const text = label.querySelector('.toggle-label');
+                
+                if (isChecked) {
+                    ui.style.background = 'var(--primary-color)';
+                    knob.style.left = '26px';
+                    text.style.color = 'var(--primary-color)';
+                    text.textContent = 'เปิด';
+                } else {
+                    ui.style.background = '#ccc';
+                    knob.style.left = '2px';
+                    text.style.color = 'var(--text-muted)';
+                    text.textContent = 'ปิด';
+                }
             });
         });
 
@@ -505,7 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const response = await fetch("/api/schedule", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "x-device-id": "device123", "x-device-code": "1234" },
+                    headers: { "Content-Type": "application/json", "x-device-id": DEVICE_ID, "x-device-code": "1234" },
                     body: JSON.stringify({ schedules })
                 });
 
@@ -572,7 +636,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${item.id || 'device123'}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${item.id || DEVICE_ID}</td>
                     <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${dateStr} ${timeStr}</td>
                     <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--primary-color);">${item.amount} กรัม</td>
                     <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${modeBadge}</td>
@@ -593,7 +657,7 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const response = await fetch("/api/history", {
                     method: "DELETE",
-                    headers: { "x-device-id": "device123", "x-device-code": "1234" }
+                    headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
                 });
                 if (response.ok) {
                     alert("✅ ล้างประวัติเรียบร้อย");

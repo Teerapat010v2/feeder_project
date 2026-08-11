@@ -44,6 +44,7 @@ bool isFeeding = false;
 unsigned long feedStartTime = 0;
 unsigned long feedDuration = 0; 
 unsigned long lastMqttPublish = 0;
+String deviceId = "feeder_";
 
 // --- ประกาศชื่อฟังก์ชันล่วงหน้า (Function Prototypes) ---
 void triggerFeeding(int amountGrams);
@@ -97,9 +98,9 @@ void connectMQTT() {
   
   while (!mqttClient.connected()) {
     Serial.print("📡 กำลังเชื่อมต่อ MQTT (HiveMQ)... ");
-    if (mqttClient.connect(DEVICE_ID, MQTT_USER, MQTT_PASS)) {
+    if (mqttClient.connect(deviceId.c_str(), MQTT_USER, MQTT_PASS)) {
       Serial.println("✅ เชื่อมต่อ MQTT สำเร็จ");
-      String cmdTopic = "fishfeeder/" + String(DEVICE_ID) + "/cmd/#";
+      String cmdTopic = "fishfeeder/" + deviceId + "/cmd/#";
       mqttClient.subscribe(cmdTopic.c_str());
     } else {
       Serial.print("❌ ล้มเหลว State=");
@@ -157,7 +158,16 @@ bool handleFileRead(String path) {
 void setup() {
   Serial.begin(115200);
   delay(500);
+
+  // Generate unique Device ID from MAC Address
+  uint64_t chipid = ESP.getEfuseMac();
+  uint32_t id = (uint32_t)(chipid >> 16);
+  deviceId += String(id, HEX);
+  deviceId.toUpperCase();
+
   Serial.println("\n--- [ESP32 Smart Fish Feeder Starting] ---");
+  Serial.print("Device ID: ");
+  Serial.println(deviceId);
 
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_R, OUTPUT);
@@ -289,11 +299,12 @@ void publishMQTTStatus() {
     doc["weight"] = weight;
     doc["current_weight"] = weight;
     doc["status"] = isFeeding ? "FEEDING" : "IDLE";
+    doc["deviceId"] = deviceId;
     
     String payload;
     serializeJson(doc, payload);
     
-    String statusTopic = "fishfeeder/" + String(DEVICE_ID) + "/status";
+    String statusTopic = "fishfeeder/" + deviceId + "/status";
     // ใส่ true ตัวสุดท้ายเพื่อให้ Broker จำค่าล่าสุดไว้ (Retained Message)
     // ทำให้เวลาเปิดหน้าเว็บใหม่ จะเห็นค่าทันทีไม่ต้องรอรอบส่ง!
     mqttClient.publish(statusTopic.c_str(), payload.c_str(), true); 
