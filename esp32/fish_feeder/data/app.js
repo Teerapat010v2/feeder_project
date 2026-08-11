@@ -569,7 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const response = await fetch("/api/schedule", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "x-device-id": DEVICE_ID, "x-device-code": "1234" },
+                    headers: { "Content-Type": "application/json", "x-device-id": encodeURIComponent(DEVICE_ID), "x-device-code": "1234" },
                     body: JSON.stringify({ schedules })
                 });
 
@@ -579,7 +579,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     alert("❌ บันทึกไม่สำเร็จ");
                 }
             } catch (err) {
-                alert("❌ ติดต่อเซิร์ฟเวอร์ไม่ได้");
+                alert(`❌ ติดต่อเซิร์ฟเวอร์ไม่ได้: ${err.message}`);
             } finally {
                 saveScheduleBtn.disabled = false;
                 saveScheduleBtn.textContent = "บันทึกตารางเวลา";
