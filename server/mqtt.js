@@ -348,32 +348,22 @@ async function handleHistory(data) {
 // FEED COMMAND
 // ==========================
 
-function feed(grams = 30) {
-
-    publish(TOPIC.COMMAND, {
-
-        action: "feed",
-
-        grams: Number(grams),
-
+async function feed(grams = 30) {
+    await publish(TOPIC.COMMAND, {
+        action: "FEED",
+        amount: Number(grams),
         mode: "manual"
-
     });
-
 }
 
 // ==========================
 // STOP COMMAND
 // ==========================
 
-function stop() {
-
-    publish(TOPIC.COMMAND, {
-
-        action: "stop"
-
+async function stop() {
+    await publish(TOPIC.COMMAND, {
+        action: "EMERGENCY_STOP"
     });
-
 }
 
 // ==========================
@@ -386,11 +376,9 @@ async function schedule(schedules) {
 
         await database.saveSchedules(schedules);
 
-        publish(TOPIC.SCHEDULE, {
-
+        await publish(TOPIC.SCHEDULE, {
             schedules
-
-        });
+        }, true);
 
         if (io) {
 
@@ -488,44 +476,29 @@ async function refreshDashboard() {
 // MQTT PUBLISH
 // ==========================
 
-function publish(topic, payload) {
-
-    if (!client.connected) {
-        console.log("[MQTT] Publish skipped, not connected:", topic);
-        return;
-    }
-
-    client.publish(
-
-        topic,
-
-        JSON.stringify(payload),
-
-        {
-
-            qos: 1,
-
-            retain: false
-
-        },
-
-        (err) => {
-
-            if (err) {
-
-                console.log("Publish Error :", err.message);
-
-            } else {
-
-                console.log("Publish >", topic);
-
+function publish(topic, payload, retain = false) {
+    return new Promise((resolve, reject) => {
+        client.publish(
+            topic,
+            JSON.stringify(payload),
+            {
+                qos: 1,
+                retain: retain
+            },
+            (err) => {
+                if (err) {
+                    console.log("Publish Error :", err.message);
+                    reject(err);
+                } else {
+                    console.log("Publish >", topic);
+                    resolve();
+                }
             }
-
-        }
-
-    );
-
+        );
+    });
 }
+
+// END PUBLISH
 
 // ==========================
 // EXPORT

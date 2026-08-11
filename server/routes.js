@@ -172,7 +172,7 @@ router.post("/feed", async (req, res) => {
 
         }
 
-        mqtt.feed(grams);
+        await mqtt.feed(grams);
 
         res.json({
             success: true,
@@ -194,9 +194,9 @@ router.post("/feed", async (req, res) => {
 // POST STOP
 // =======================================
 
-router.post("/stop", (req, res) => {
+router.post("/stop", async (req, res) => {
 
-    mqtt.stop();
+    await mqtt.stop();
 
     res.json({
         success: true,
