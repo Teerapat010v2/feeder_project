@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
         password: "Teerapat99",
         clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
     };
-    let DEVICE_ID = localStorage.getItem("deviceId") || "device123";
+    let DEVICE_ID = "Prototype_01";
     let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
     let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
     
@@ -138,12 +138,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
                 const data = await response.json();
                 
-                if (data.deviceId && data.deviceId !== localStorage.getItem("deviceId")) {
-                    localStorage.setItem("deviceId", data.deviceId);
-                    DEVICE_ID = data.deviceId;
-                    console.log("Device ID synced:", DEVICE_ID);
-                }
-
                 updateDashboardUI(data.current_weight, true);
             } catch (err) {
                 console.warn("⚡ กำลังเชื่อมต่อกับบอร์ด ESP32...");
@@ -230,24 +224,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const resetApBtn = document.getElementById("resetApBtn");
     const apSsidInput = document.getElementById("apSsidInput");
     const apPasswordInput = document.getElementById("apPasswordInput");
-    const deviceIdInput = document.getElementById("deviceIdInput");
-    const saveDeviceIdBtn = document.getElementById("saveDeviceIdBtn");
-
-    // โหลด Device ID เดิมมาแสดง
-    if (deviceIdInput) {
-        deviceIdInput.value = localStorage.getItem("deviceId") || "device123";
-    }
-
-    if (saveDeviceIdBtn) {
-        saveDeviceIdBtn.addEventListener("click", () => {
-            const newId = deviceIdInput.value.trim();
-            if (newId) {
-                localStorage.setItem("deviceId", newId);
-                alert("✅ บันทึก Device ID เรียบร้อยแล้ว\nระบบจะใช้ ID นี้ในการควบคุมออนไลน์");
-                location.reload();
-            }
-        });
-    }
+    
+    // (Device ID is hardcoded to Prototype_01, no save button logic needed)
 
     // 1. กดปุ่มบันทึกชื่อ/รหัสผ่าน Wi-Fi ของตัวเครื่อง (AP Mode)
     if (saveApBtn) {
@@ -636,7 +614,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${item.id || DEVICE_ID}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${DEVICE_ID}</td>
                     <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${dateStr} ${timeStr}</td>
                     <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--primary-color);">${item.amount} กรัม</td>
                     <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${modeBadge}</td>

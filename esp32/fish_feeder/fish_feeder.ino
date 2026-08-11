@@ -159,12 +159,9 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
-  // Generate unique Device ID from MAC Address
-  uint64_t chipid = ESP.getEfuseMac();
-  uint32_t id = (uint32_t)(chipid >> 16);
-  deviceId += String(id, HEX);
-  deviceId.toUpperCase();
-
+  // กำหนดชื่อบอร์ดเป็น Prototype_01 ตามที่ระบุ (ไม่สามารถแก้ไขได้)
+  deviceId = "Prototype_01";
+  
   Serial.println("\n--- [ESP32 Smart Fish Feeder Starting] ---");
   Serial.print("Device ID: ");
   Serial.println(deviceId);

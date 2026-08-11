@@ -50,12 +50,11 @@
         <div class="card" style="margin-bottom: 20px;">
             <div class="card-header-title">รหัสประจำเครื่อง (Device ID)</div>
             <div class="input-group">
-                <label for="deviceIdInput">ไอดีสำหรับควบคุมผ่านออนไลน์:</label>
+                <label for="deviceIdInput">ไอดีเครื่อง (แสดงผลในตารางประวัติ):</label>
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="deviceIdInput" placeholder="ex: feeder_1A2B3C">
-                    <button id="saveDeviceIdBtn" class="btn-primary" style="width:auto; padding:0 20px;">บันทึก</button>
+                    <input type="text" id="deviceIdInput" value="Prototype_01" readonly style="background-color: var(--bg-color); color: var(--text-muted); font-weight: bold; cursor: not-allowed;">
                 </div>
-                <small style="color:var(--text-color); margin-top:5px; display:block;">หากเชื่อมต่อกับ WiFi เครื่องโดยตรง ระบบจะดึง ID ให้อัตโนมัติ</small>
+                <small style="color:var(--text-color); margin-top:5px; display:block;">ไม่สามารถแก้ไขได้ ไอดีนี้จะไปแสดงในตารางประวัติการให้อาหารด้วย</small>
             </div>
         </div>
 
