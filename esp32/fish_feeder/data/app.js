@@ -165,6 +165,18 @@ document.addEventListener("DOMContentLoaded", () => {
                     // ส่งคำสั่งผ่าน MQTT (Online)
                     const cmdPayload = JSON.stringify({ action: "FEED", amount: amount });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
+
+                    // บันทึกประวัติลงฐานข้อมูล Vercel Postgres
+                    try {
+                        await fetch('/api/history', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ amount: amount, mode: 'manual' })
+                        });
+                    } catch (e) {
+                        console.error('Failed to save history:', e);
+                    }
+
                     alert(`✅ ส่งคำสั่งให้อาหาร ${amount} กรัมผ่านระบบออนไลน์แล้ว`);
                 } else {
                     // ส่งคำสั่งผ่าน HTTP (Local)
