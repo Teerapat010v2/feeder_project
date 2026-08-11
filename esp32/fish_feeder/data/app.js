@@ -223,6 +223,34 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // =====================================
+// TAB NAVIGATION SWITCH LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tabApBtn = document.getElementById("tabApBtn");
+    const tabHomeBtn = document.getElementById("tabHomeBtn");
+    const sectionAp = document.getElementById("section-ap-settings");
+    const sectionHome = document.getElementById("section-home-settings");
+
+    if (tabApBtn && tabHomeBtn) {
+        tabApBtn.addEventListener("click", () => {
+            tabApBtn.classList.add("active");
+            tabHomeBtn.classList.remove("active");
+
+            if (sectionAp) sectionAp.style.display = "block";
+            if (sectionHome) sectionHome.style.display = "none";
+        });
+
+        tabHomeBtn.addEventListener("click", () => {
+            tabHomeBtn.classList.add("active");
+            tabApBtn.classList.remove("active");
+
+            if (sectionAp) sectionAp.style.display = "none";
+            if (sectionHome) sectionHome.style.display = "block";
+        });
+    }
+});
+
+// =====================================
 // HOME WIFI SETTINGS LOGIC (settings.html)
 // =====================================
 document.addEventListener("DOMContentLoaded", () => {
