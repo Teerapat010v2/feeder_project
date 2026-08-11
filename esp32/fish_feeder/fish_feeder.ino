@@ -358,6 +358,11 @@ void publishMQTTStatus() {
 void checkSchedules() {
   struct tm timeinfo;
   if (!getLocalTime(&timeinfo)) {
+    static unsigned long lastNtpErr = 0;
+    if (millis() - lastNtpErr > 10000) {
+      Serial.println("⏳ [NTP] รอซิงค์เวลาจากอินเทอร์เน็ต...");
+      lastNtpErr = millis();
+    }
     return; // Time not set yet
   }
 
@@ -366,10 +371,11 @@ void checkSchedules() {
 
   if (currentMin != lastCheckedMinute) {
     lastCheckedMinute = currentMin;
+    Serial.printf("🕒 [NTP] เวลาปัจจุบัน: %02d:%02d | ตารางเวลาที่บันทึกไว้: %d รอบ\n", currentHour, currentMin, scheduleCount);
     
     for (int i = 0; i < scheduleCount; i++) {
       if (localSchedules[i].enable && localSchedules[i].hour == currentHour && localSchedules[i].minute == currentMin) {
-        Serial.printf("⏰ ได้เวลาให้อาหาร (Schedule): %02d:%02d\n", currentHour, currentMin);
+        Serial.printf("⏰ ได้เวลาให้อาหาร (Schedule): %02d:%02d | ปริมาณ %d กรัม\n", currentHour, currentMin, localSchedules[i].amount);
         triggerFeeding(localSchedules[i].amount);
         break; // Trigger only one schedule per minute
       }
