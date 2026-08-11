@@ -120,6 +120,19 @@ void setRGB(bool r, bool g, bool b) {
   digitalWrite(LED_B, b ? HIGH : LOW);
 }
 
+void updateStatusLED() {
+  if (mqttClient.connected()) {
+    // โหมดออนไลน์ = สีเขียว
+    setRGB(false, true, false);
+  } else if (WiFi.status() == WL_CONNECTED || WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+    // โหมด Local (WiFi/AP) = สีเหลือง (แดง+เขียว)
+    setRGB(true, true, false);
+  } else {
+    // มีไฟเข้าแต่ยังไม่เชื่อมต่ออะไรเลย = สีแดง
+    setRGB(true, false, false);
+  }
+}
+
 // =================================================================
 // 📌 5. ฟังก์ชันเช็กนามสกุลไฟล์เว็บ
 // =================================================================
@@ -335,11 +348,13 @@ void loop() {
   }
 
   if (isFeeding) {
-    setRGB(false, true, false);   
+    setRGB(false, true, false); // Green while feeding
     if (millis() - feedStartTime >= feedDuration) {
       stopFeeding();              
-      setRGB(false, false, true); 
+      updateStatusLED(); // Restore status LED
     }
+  } else {
+    updateStatusLED();
   }
 
   yield(); 

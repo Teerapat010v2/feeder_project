@@ -276,6 +276,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // เรียกตอนโหลดหน้าจอ
     loadDashboardTimes();
+
+    // --- 6. ควบคุมไฟ LED Status บน UI ---
+    const ledPower = document.getElementById("ledPower");
+    const ledLocal = document.getElementById("ledAp");
+    const ledOnline = document.getElementById("ledMqtt");
+
+    function updateUiLeds() {
+        if (ledPower) ledPower.classList.add("active"); // Power always on if dashboard loaded
+        
+        if (isLocalMode) {
+            if (ledLocal) ledLocal.classList.add("active");
+            if (ledOnline) ledOnline.classList.remove("active");
+        } else {
+            if (ledLocal) ledLocal.classList.remove("active");
+            // Online LED is controlled by MQTT connection state
+            if (ledOnline) {
+                if (mqttClient && mqttClient.connected) {
+                    ledOnline.classList.add("active");
+                } else {
+                    ledOnline.classList.remove("active");
+                }
+            }
+        }
+    }
+    
+    // เรียกตอนเริ่ม และเซ็ตให้เรียกซ้ำ
+    updateUiLeds();
+    setInterval(updateUiLeds, 2000);
 });
 // =====================================
 // AP WIFI SETTINGS LOGIC (settings.html)
