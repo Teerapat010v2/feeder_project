@@ -4,7 +4,7 @@
 
 ---
 
-# 1. ESP8266 NodeMCU Pinout
+# 1. esp32 NodeMCU Pinout
 
 | GPIO | NodeMCU | Device |
 |------|----------|---------|
@@ -19,7 +19,7 @@
 
 # 2. HX711
 
-| HX711 | ESP8266 |
+| HX711 | esp32 |
 |--------|----------|
 | VCC | 3.3V |
 | GND | GND |
@@ -41,7 +41,7 @@
 
 # 4. Relay Module
 
-| Relay | ESP8266 |
+| Relay | esp32 |
 |--------|----------|
 | IN1 | D1 |
 | VCC | VIN (5V) |
@@ -66,7 +66,7 @@ Power Supply (-)
 
 # 5. DS3231 RTC
 
-| DS3231 | ESP8266 |
+| DS3231 | esp32 |
 |---------|----------|
 | SDA | D2 |
 | SCL | D3 |
@@ -77,7 +77,7 @@ Power Supply (-)
 
 # 6. LED Status
 
-| LED | ESP8266 |
+| LED | esp32 |
 |------|----------|
 | + | D4 ผ่านตัวต้านทาน 220Ω |
 | - | GND |
@@ -92,17 +92,17 @@ LED แสดงสถานะ
 
 # 7. Power
 
-ESP8266
+esp32
 
 USB 5V
 
 HX711
 
-3.3V จาก ESP8266
+3.3V จาก esp32
 
 DS3231
 
-3.3V จาก ESP8266
+3.3V จาก esp32
 
 Relay
 
@@ -186,7 +186,7 @@ HiveMQ Cloud
 
 ↓
 
-ESP8266
+esp32
 
 ↓
 
@@ -225,7 +225,7 @@ server/
 
 web/
 
-esp8266/
+esp32/
 
 doc/
 

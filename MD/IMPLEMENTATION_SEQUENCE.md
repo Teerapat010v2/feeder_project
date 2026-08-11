@@ -1,12 +1,12 @@
 # Fish Feeder IoT
 
-ระบบเครื่องให้อาหารปลาอัตโนมัติด้วย ESP8266 + MQTT + Firebase
+ระบบเครื่องให้อาหารปลาอัตโนมัติด้วย esp32 + MQTT + Firebase
 
 ---
 
 # Hardware
 
-- ESP8266 NodeMCU
+- esp32 NodeMCU
 - HX711
 - Load Cell 5kg
 - Relay Module 5V
@@ -18,7 +18,7 @@
 
 # Wiring
 
-| ESP8266 | Device |
+| esp32 | Device |
 |---------|--------|
 | D1 (GPIO5) | Relay IN1 |
 | D2 (GPIO4) | DS3231 SDA |
@@ -116,7 +116,7 @@ settings
 ```
 fish-feeder/
 
-├── esp8266/
+├── esp32/
 ├── server/
 ├── web/
 ├── firebase-service-account.json
@@ -131,7 +131,7 @@ fish-feeder/
 
 1. ใส่ WiFi SSID และ Password
 2. ใส่ MQTT Username และ Password
-3. อัปโหลดโค้ดลง ESP8266
+3. อัปโหลดโค้ดลง esp32
 4. เปิด Dashboard
 5. ทดสอบสั่งงานผ่าน MQTT
 

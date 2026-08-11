@@ -1,347 +1,437 @@
+#include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
-#include <WiFiClientSecure.h>
-#include <PubSubClient.h>
-#include <FirebaseESP32.h>
+#include <DNSServer.h>
+#include <Preferences.h>
 #include <ArduinoJson.h>
+#include <SPIFFS.h>
 #include <Wire.h>
-#include <WiFiManager.h>
 #include "HX711.h"
-#include <RtcDS1302.h>
-#include <ThreeWire.h>
-#include "secrets.h"
 
-// --- 📌 Pin Configurations ---
-#define HX711_DT   16
-#define HX711_SCK  17
-#define RELAY_PIN  18
+// =================================================================
+// 📌 1. โซนตั้งค่าพินฮาร์ดแวร์ (HARDWARE PIN CONFIG)
+// =================================================================
+#define HX711_DT   16   
+#define HX711_SCK  17   
+#define RELAY_PIN  18   
 
-// 🔴🟢🔵 RGB LED Pins (Common Cathode)
-#define LED_R      19
-#define LED_G      23
-#define LED_B      25
+#define LED_R      19   
+#define LED_G      23   
+#define LED_B      25   
 
-// 🕒 RTC DS1302 Pins
-#define RTC_RST    14
-#define RTC_DAT    21
-#define RTC_CLK    22
+// =================================================================
+// 📌 2. โซนปรับแต่งค่าการทำงาน (ADJUSTABLE PARAMETERS)
+// =================================================================
+#define CALIBRATION_FACTOR 220.4  
 
-// --- ⚙️ Calibration Values ---
-#define CALIBRATION_FACTOR 220.4
+#define RELAY_ON   LOW
+#define RELAY_OFF  HIGH
 
-// --- Objects ---
-HX711 scale;
-WiFiClientSecure espClient;
-PubSubClient client(espClient);
+// =================================================================
+// 📌 3. ประกาศตัวแปรและออบเจ็กต์ของระบบ (SYSTEM OBJECTS)
+// =================================================================
+HX711 scale;                    
 WebServer server(80);           
-WiFiManager wm;
-ThreeWire myWire(RTC_DAT, RTC_CLK, RTC_RST);
-RtcDS1302<ThreeWire> myRTC(myWire);
+DNSServer dnsServer;            
+Preferences preferences;        
 
-// 🔥 Firebase Objects
-FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config;
-
-// --- MQTT Topics ---
-String subFeedTopic   = "fishfeeder/" + String(DEVICE_ID) + "/cmd/feed";
-String subStopTopic   = "fishfeeder/" + String(DEVICE_ID) + "/cmd/stop";
-String pubStatusTopic = "fishfeeder/" + String(DEVICE_ID) + "/status";
-String pubWeightTopic = "fishfeeder/" + String(DEVICE_ID) + "/weight";
-
-// Timers & State Variables
-unsigned long lastWeightReport = 0;
-const long reportInterval = 2000; // 🟢 ปรับรายงานค่าน้ำหนักเป็นทุก 2 วินาที (Real-time)
-unsigned long lastFbCheck = 0;
-
-bool isFeeding = false;
+bool isFeeding = false;         
 unsigned long feedStartTime = 0;
-unsigned long feedDuration = 0;
+unsigned long feedDuration = 0; 
 
-// Function Declarations
-void setupWiFi();
-void setupFirebase();
-void reconnectMQTT();
-void callback(char* topic, byte* payload, unsigned int length);
+// --- ประกาศชื่อฟังก์ชันล่วงหน้า (Function Prototypes) ---
 void triggerFeeding(int amountGrams);
 void stopFeeding();
-void emergencyStop();
-void publishStatus(String state, String msg);
-void readAndReportWeight(bool isWifiConnected);
-void checkFirebaseCommands();
-void checkWifiConfigFromFirebase();
+void handleApiStatus();
 void handleLocalFeed();
 void handleLocalStop();
+void handleSaveWifi();
+void handleSaveApWifi();
+void handleResetWifi();
+void handleScanWifi();
+void handleDummyEmptyArray();
+void handleDummySuccess();
+bool handleFileRead(String path);
 void setRGB(bool r, bool g, bool b);
+void testMotorSerial();
 
+// =================================================================
+// 📌 4. ฟังก์ชันเปิด/ปิดไฟ RGB LED สถานะ
+// =================================================================
 void setRGB(bool r, bool g, bool b) {
   digitalWrite(LED_R, r ? HIGH : LOW);
   digitalWrite(LED_G, g ? HIGH : LOW);
   digitalWrite(LED_B, b ? HIGH : LOW);
 }
 
+// =================================================================
+// 📌 5. ฟังก์ชันเช็กนามสกุลไฟล์เว็บ
+// =================================================================
+String getContentType(String filename) {
+  if (filename.endsWith(".html")) return "text/html";
+  else if (filename.endsWith(".css")) return "text/css";
+  else if (filename.endsWith(".js")) return "application/javascript";
+  else if (filename.endsWith(".png")) return "image/png";
+  else if (filename.endsWith(".jpg")) return "image/jpeg";
+  else if (filename.endsWith(".ico")) return "image/x-icon";
+  else if (filename.endsWith(".json")) return "application/json";
+  return "text/plain";
+}
+
+// =================================================================
+// 📌 6. ฟังก์ชันอ่านไฟล์จาก SPIFFS
+// =================================================================
+bool handleFileRead(String path) {
+  if (path.endsWith("/")) path += "index.html"; 
+  
+  String contentType = getContentType(path);
+  if (SPIFFS.exists(path)) {
+    File file = SPIFFS.open(path, "r");
+    server.streamFile(file, contentType);
+    file.close();
+    return true;
+  }
+  return false;
+}
+
+// =================================================================
+// 📌 7. ฟังก์ชันเริ่มต้นระบบ SETUP
+// =================================================================
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("\n--- [ESP32 System Initialization] ---");
+  Serial.println("\n--- [ESP32 Smart Fish Feeder Starting] ---");
 
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
 
-  digitalWrite(RELAY_PIN, HIGH); // Active LOW -> ปิด Relay ทันที
-  setRGB(true, false, false);   // 🔴 เริ่มต้นแสดงสีแดง
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+  setRGB(false, false, true); 
 
-  myRTC.Begin();
+  if (!SPIFFS.begin(true)) {
+    Serial.println("❌ SPIFFS Mount Failed! กรุณาอัปโหลดโฟลเดอร์ data");
+    return;
+  }
+  Serial.println("✅ SPIFFS Mounted Successfully");
 
   scale.begin(HX711_DT, HX711_SCK);
   scale.set_scale(CALIBRATION_FACTOR);
-  scale.tare();
+  scale.tare(); 
+  Serial.println("✅ HX711 Loadcell Ready");
 
-  setupWiFi();
+  WiFi.mode(WIFI_AP_STA);
+  
+  preferences.begin("wifi_config", true);
+  String savedApSsid = preferences.getString("ap_ssid", "FishFeeder-AP");
+  String savedApPass = preferences.getString("ap_pass", "");
+  preferences.end();
 
-  configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-  if (WiFi.status() == WL_CONNECTED) {
-    struct tm timeinfo;
-    int retry = 0;
-    while (!getLocalTime(&timeinfo) && retry < 10) {
-      delay(300);
-      retry++;
+  if (savedApPass.length() >= 8) {
+    WiFi.softAP(savedApSsid.c_str(), savedApPass.c_str());
+  } else {
+    WiFi.softAP(savedApSsid.c_str());
+  }
+  
+  Serial.print("🌐 Wi-Fi Access Point Ready: ");
+  Serial.println(savedApSsid);
+
+  dnsServer.start(53, "*", WiFi.softAPIP());
+
+  // ===============================================================
+  // 📌 เชื่อมต่อ Home Wi-Fi (ถ้ามีบันทึกไว้)
+  // ===============================================================
+  preferences.begin("wifi_config", true);
+  String savedSsid = preferences.getString("ssid", "");
+  String savedPass = preferences.getString("pass", "");
+  preferences.end();
+
+  if (savedSsid.length() > 0) {
+    Serial.print("📡 กำลังเชื่อมต่อ Home Wi-Fi: ");
+    Serial.println(savedSsid);
+    WiFi.begin(savedSsid.c_str(), savedPass.c_str());
+    
+    int retries = 0;
+    while (WiFi.status() != WL_CONNECTED && retries < 20) { // รอ 10 วินาที
+      delay(500);
+      Serial.print(".");
+      retries++;
     }
+    Serial.println();
+    
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.print("✅ เชื่อมต่อ Home Wi-Fi สำเร็จ! IP Address (สำหรับเข้าเว็บวงแลนเดียวกัน): ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("❌ เชื่อมต่อ Home Wi-Fi ไม่สำเร็จ (ระบบจะใช้ AP Mode ต่อไป)");
+    }
+  } else {
+    Serial.println("ℹ️ ยังไม่มีการตั้งค่า Home Wi-Fi (ระบบอยู่ในโหมด AP เท่านั้น)");
   }
 
+  // ===============================================================
+  // 📌 8. กำหนดเส้นทาง API Endpoints ทั้งหมด
+  // ===============================================================
+  server.on("/api/status", handleApiStatus);     
   server.on("/local-feed", handleLocalFeed);
+  server.on("/api/feed", handleLocalFeed);
   server.on("/local-stop", handleLocalStop);
+  server.on("/api/stop", handleLocalStop);
+  
+  // เส้นทางหน้า Settings และ Wi-Fi
+  server.on("/api/save-wifi", handleSaveWifi);   
+  server.on("/api/save-ap", handleSaveApWifi);
+  server.on("/api/reset-wifi", handleResetWifi); 
+  server.on("/api/scan-wifi", handleScanWifi);   
+
+  // Endpoint ป้องกันหน้าเว็บค้าง
+  server.on("/api/verify", HTTP_POST, handleDummySuccess);
+  server.on("/api/history", HTTP_GET, handleDummyEmptyArray);
+  server.on("/api/history", HTTP_DELETE, handleDummySuccess);
+  server.on("/api/alerts", HTTP_GET, handleDummyEmptyArray);
+  server.on("/api/schedule", HTTP_GET, handleDummyEmptyArray);
+  server.on("/api/schedule", HTTP_POST, handleDummySuccess);
+  server.on("/api/usage", HTTP_POST, handleDummySuccess);
+
+  // ดักจับ /generate_204 กันมือถือสแปม
+  server.on("/generate_204", []() {
+    server.send(204, "text/plain", "");
+  });
+
+  // ดักจับไฟล์ที่ไม่พบอื่นๆ
+  server.onNotFound([]() {
+    String uri = server.uri();
+    if (!handleFileRead(uri)) {
+      if (uri != "/favicon.ico") {
+        Serial.print("❌ [404 Not Found]: ");
+        Serial.println(uri);
+      }
+      server.sendHeader("Location", "http://192.168.4.1/", true);
+      server.send(302, "text/plain", "");
+    }
+  });
+
   server.begin();
-
-  espClient.setInsecure();
-  client.setServer(MQTT_HOST, MQTT_PORT);
-  client.setCallback(callback);
-  client.setBufferSize(512);
-
-  setupFirebase();
-
-  setRGB(false, false, true); // 🔵 แสดงสีน้ำเงิน (พร้อมใช้งาน)
-  Serial.println("--- [System Ready] ---");
+  Serial.println("🚀 Web Server Ready at http://192.168.4.1");
 }
 
+// =================================================================
+// 📌 9. ฟังก์ชันการทำงานหลัก LOOP
+// =================================================================
 void loop() {
-  wm.process();
+  testMotorSerial();              
 
-  unsigned long currentMillis = millis();
-  bool isWifiConnected = (WiFi.status() == WL_CONNECTED);
-
-  static bool lastWifiConnected = false;
-  if (isWifiConnected != lastWifiConnected) {
-    lastWifiConnected = isWifiConnected;
-    if (isWifiConnected) {
-      setRGB(false, false, true);
-    } else {
-      setRGB(true, false, false);
-    }
-  }
-
-  if (isWifiConnected) {
-    server.handleClient();
-
-    if (!client.connected()) {
-      reconnectMQTT();
-    } else {
-      client.loop();
-    }
-
-    checkFirebaseCommands();
-    checkWifiConfigFromFirebase(); // 🟢 ตรวจการตั้งค่า Wi-Fi ใหม่จาก Firebase
-  } else {
-    server.handleClient();
-  }
+  dnsServer.processNextRequest(); 
+  server.handleClient();          
 
   if (isFeeding) {
-    setRGB(false, true, false); // 🟢 แสดงสีเขียวขณะให้อาหาร
-    if (currentMillis - feedStartTime >= feedDuration) {
-      stopFeeding();
-      setRGB(false, false, true);
-      if (isWifiConnected) {
-        publishStatus("IDLE", "Feeding complete");
-      }
+    setRGB(false, true, false);   
+    if (millis() - feedStartTime >= feedDuration) {
+      stopFeeding();              
+      setRGB(false, false, true); 
     }
   }
 
-  if (currentMillis - lastWeightReport >= reportInterval) {
-    lastWeightReport = currentMillis;
-    readAndReportWeight(isWifiConnected);
-  }
-
-  yield();
+  yield(); 
 }
 
-void setupFirebase() {
-  config.host = FIREBASE_HOST;
-  config.signer.tokens.legacy_token = FIREBASE_AUTH;
-
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true);
-  fbdo.setResponseSize(1024);
-}
-
-void setupWiFi() {
-  wm.setDebugOutput(false);
-  wm.setConfigPortalBlocking(false);
-  wm.autoConnect("FishFeeder-Setup");
-}
-
-void handleLocalFeed() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  int amount = server.hasArg("amount") ? server.arg("amount").toInt() : 10;
-  if (amount <= 0) amount = 10;
-  triggerFeeding(amount);
-  server.send(200, "application/json", "{\"success\":true,\"message\":\"Local feed executed\"}");
-}
-
-void handleLocalStop() {
-  server.sendHeader("Access-Control-Allow-Origin", "*");
-  emergencyStop();
-  server.send(200, "application/json", "{\"success\":true,\"message\":\"Local stop executed\"}");
-}
-
-void reconnectMQTT() {
-  static unsigned long lastReconnectAttempt = 0;
-  unsigned long now = millis();
-
-  if (!client.connected() && (now - lastReconnectAttempt > 5000)) {
-    lastReconnectAttempt = now;
-    String clientId = "ESP32Client-" + String(DEVICE_ID) + "-" + String(random(0xffff), HEX);
-
-    if (client.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
-      client.subscribe(subFeedTopic.c_str());
-      client.subscribe(subStopTopic.c_str());
-      publishStatus("ONLINE", "Connected & Ready");
-    }
-  }
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  String incomingTopic = String(topic);
-  StaticJsonDocument<256> doc;
-  if (deserializeJson(doc, payload, length)) return;
-
-  if (incomingTopic == subFeedTopic) {
-    int amount = doc["amount"] | doc["amountGrams"] | 10;
-    triggerFeeding(amount);
-  } else if (incomingTopic == subStopTopic) {
-    emergencyStop();
-  }
-}
-
+// =================================================================
+// 📌 10. ฟังก์ชันสั่งเปิดรีเลย์มอเตอร์
+// =================================================================
 void triggerFeeding(int amountGrams) {
-  if (isFeeding) return;
+  if (isFeeding) return; 
 
   unsigned long duration = (unsigned long)((amountGrams / 10.0) * 2000.0);
   if (duration < 1000) duration = 1000;
+  
   feedDuration = duration;
-
-  if (WiFi.status() == WL_CONNECTED) {
-    publishStatus("FEEDING", "Dispensing food...");
-  }
-
-  digitalWrite(RELAY_PIN, LOW); // เปิด Relay
   feedStartTime = millis();
   isFeeding = true;
+
+  digitalWrite(RELAY_PIN, RELAY_ON);
+  
+  Serial.print("🐟 กำลังให้อาหาร: ");
+  Serial.print(amountGrams);
+  Serial.print(" กรัม (เปิดมอเตอร์ ");
+  Serial.print(duration);
+  Serial.println(" ms)");
 }
 
+// =================================================================
+// 📌 11. ฟังก์ชันสั่งปิดรีเลย์
+// =================================================================
 void stopFeeding() {
   isFeeding = false;
-  digitalWrite(RELAY_PIN, HIGH); // ปิด Relay
+  digitalWrite(RELAY_PIN, RELAY_OFF); 
+  Serial.println("🛑 หยุดการทำงานมอเตอร์แล้ว");
 }
 
-void emergencyStop() {
-  stopFeeding();
-  if (WiFi.status() == WL_CONNECTED) {
-    publishStatus("STOPPED", "Emergency stop executed");
+// =================================================================
+// 📌 12. API คืนค่าสถานะและน้ำหนัก (รองรับ current_weight ตาม app.js)[cite: 2]
+// =================================================================
+void handleApiStatus() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
+  if (weight < 0) weight = 0.0; 
+
+  StaticJsonDocument<200> doc;
+  doc["online"] = true;
+  doc["current_weight"] = weight;   // 🟢 ตรงกับ app.js บรรทัดที่ 17[cite: 2]
+  doc["weight"]         = weight;   
+  doc["weight_grams"]   = weight; 
+  doc["status"]         = isFeeding ? "FEEDING" : "IDLE";
+
+  String response;
+  serializeJson(doc, response);
+  server.send(200, "application/json", response);
+}
+
+// =================================================================
+// 📌 13. API สั่งให้อาหาร
+// =================================================================
+void handleLocalFeed() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  
+  int amount = 10;
+  if (server.hasArg("amount")) {
+    amount = server.arg("amount").toInt();
+  } else if (server.hasArg("grams")) {
+    amount = server.arg("grams").toInt();
+  }
+  if (amount <= 0) amount = 10;
+  
+  triggerFeeding(amount);
+  
+  String response = "{\"success\":true,\"message\":\"กำลังปล่อยอาหาร " + String(amount) + " กรัม\"}";
+  server.send(200, "application/json", response);
+}
+
+// =================================================================
+// 📌 14. API หยุดฉุกเฉิน
+// =================================================================
+void handleLocalStop() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  stopFeeding(); 
+  
+  String response = "{\"success\":true,\"message\":\"หยุดทำงานฉุกเฉินเรียบร้อย\"}";
+  server.send(200, "application/json", response);
+}
+
+// =================================================================
+// 📌 15. API บันทึก Wi-Fi บ้าน
+// =================================================================
+void handleSaveWifi() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String ssid = server.hasArg("ssid") ? server.arg("ssid") : "";
+  String pass = server.hasArg("pass") ? server.arg("pass") : "";
+
+  if (ssid.length() > 0) {
+    preferences.begin("wifi_config", false);
+    preferences.putString("ssid", ssid);
+    preferences.putString("pass", pass);
+    preferences.end();
+
+    server.send(200, "application/json", "{\"success\":true,\"message\":\"บันทึก Wi-Fi เรียบร้อย! ESP32 กำลังรีบูต...\"}");
+    delay(1000);
+    ESP.restart(); 
+  } else {
+    server.send(400, "application/json", "{\"success\":false,\"message\":\"กรุณาระบุชื่อ SSID\"}");
   }
 }
 
-void readAndReportWeight(bool isWifiConnected) {
-  if (scale.is_ready()) {
-    float weight = scale.get_units(3);
-    if (weight < 0) weight = 0.0;
+// =================================================================
+// 📌 16. API บันทึก Wi-Fi AP ของเครื่อง
+// =================================================================
+void handleSaveApWifi() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  String apSsid = server.hasArg("apSsid") ? server.arg("apSsid") : "";
+  String apPass = server.hasArg("apPass") ? server.arg("apPass") : "";
 
-    if (isWifiConnected) {
-      if (client.connected()) {
-        StaticJsonDocument<128> doc;
-        doc["weight_grams"] = weight;
-        doc["timestamp"] = millis() / 1000;
-        char buffer[128];
-        serializeJson(doc, buffer);
-        client.publish(pubWeightTopic.c_str(), buffer);
-      }
+  preferences.begin("wifi_config", false);
+  if (apSsid.length() > 0) preferences.putString("ap_ssid", apSsid);
+  if (apPass.length() >= 8) preferences.putString("ap_pass", apPass);
+  preferences.end();
 
-      if (Firebase.ready()) {
-        String basePath = "/devices/" + String(DEVICE_ID);
-        Firebase.setFloat(fbdo, basePath + "/current_weight", weight);
-        Firebase.setInt(fbdo, basePath + "/last_updated", millis() / 1000);
-      }
+  server.send(200, "application/json", "{\"success\":true,\"message\":\"บันทึกค่า AP WiFi เรียบร้อย! ESP32 กำลังรีบูต...\"}");
+  delay(1000);
+  ESP.restart();
+}
+
+// =================================================================
+// 📌 17. API รีเซ็ต / ล้างค่า Wi-Fi
+// =================================================================
+void handleResetWifi() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  preferences.begin("wifi_config", false);
+  preferences.clear(); 
+  preferences.end();
+
+  server.send(200, "application/json", "{\"success\":true,\"message\":\"ล้างค่าเครือข่ายเรียบร้อย\"}");
+  delay(1000);
+  ESP.restart();
+}
+
+// =================================================================
+// 📌 18. API สแกนหา Wi-Fi รอบตัว
+// =================================================================
+void handleScanWifi() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  int n = WiFi.scanNetworks();
+  String json = "[";
+  for (int i = 0; i < n; ++i) {
+    if (i > 0) json += ",";
+    json += "\"" + WiFi.SSID(i) + "\"";
+  }
+  json += "]";
+  server.send(200, "application/json", json);
+}
+
+// =================================================================
+// 📌 19. API ดัมบ์ข้อมูลกันหน้าเว็บค้าง (Dummy Handlers)
+// =================================================================
+void handleDummyEmptyArray() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", "[]");
+}
+
+void handleDummySuccess() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  server.send(200, "application/json", "{\"success\":true}");
+}
+
+// =================================================================
+// 🛠️ 20. ฟังก์ชันรับคำสั่งผ่าน Serial Monitor
+// =================================================================
+void testMotorSerial() {
+  if (Serial.available() > 0) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    
+    if (cmd == "1") {
+      Serial.println("\n------------------------------------------");
+      Serial.println("🛠️ [TEST MODE] ได้รับคำสั่ง '1'");
+      Serial.println("⚙️ กำลังเทสมอเตอร์หมุน...");
+      Serial.println("------------------------------------------");
+      triggerFeeding(10); 
+    } 
+    else if (cmd == "0") {
+      Serial.println("\n🛑 [TEST MODE] สั่งหยุดมอเตอร์ทันที!");
+      stopFeeding();
     }
-  }
-}
-
-// 📩 เช็กคำสั่งจาก Firebase
-void checkFirebaseCommands() {
-  if (isFeeding) return;
-
-  if (millis() - lastFbCheck >= 1000) {
-    lastFbCheck = millis();
-
-    if (Firebase.ready()) {
-      String cmdPath = "/devices/" + String(DEVICE_ID) + "/cmd_feed";
-      if (Firebase.getInt(fbdo, cmdPath)) {
-        int amount = fbdo.intData();
-        if (amount > 0) {
-          Firebase.setInt(fbdo, cmdPath, 0); // เคลียร์คำสั่ง
-          triggerFeeding(amount);
-        } else if (amount == -1) {
-          Firebase.setInt(fbdo, cmdPath, 0);
-          emergencyStop();
-        }
-      }
+    else if (cmd == "2") {
+      Serial.println("\n⚡ [TEST MODE] เปิดรีเลย์ค้าง (ทดสอบขั้วไฟ)");
+      digitalWrite(RELAY_PIN, !digitalRead(RELAY_PIN)); 
     }
-  }
-}
-
-// 🟢 เช็กค่าตั้งค่า Wi-Fi บ้านใหม่จาก Firebase
-void checkWifiConfigFromFirebase() {
-  if (Firebase.ready()) {
-    String path = "/devices/" + String(DEVICE_ID) + "/wifi_config";
-    if (Firebase.getString(fbdo, path + "/ssid")) {
-      String newSsid = fbdo.stringData();
-      if (newSsid.length() > 0) {
-        String newPass = "";
-        if (Firebase.getString(fbdo, path + "/pass")) {
-          newPass = fbdo.stringData();
-        }
-        
-        Firebase.deleteNode(fbdo, path); // ล้างค่าหลังอ่านเสร็จ
-        
-        WiFi.begin(newSsid.c_str(), newPass.c_str());
-        ESP.restart();
-      }
+    else if (cmd.equalsIgnoreCase("reset")) {
+      Serial.println("\n⚠️ [COMMAND] กำลังรีเซ็ตการตั้งค่า Wi-Fi ทั้งหมด...");
+      preferences.begin("wifi_config", false);
+      preferences.clear(); 
+      preferences.end();
+      Serial.println("✅ ล้างค่าเรียบร้อย! ESP32 จะกลับไปเป็นโหมด AP (ไม่มีรหัส) ทันทีที่รีบูต...");
+      delay(1000);
+      ESP.restart();
     }
-  }
-}
-
-void publishStatus(String state, String msg) {
-  if (client.connected()) {
-    StaticJsonDocument<128> doc;
-    doc["state"] = state;
-    doc["message"] = msg;
-    char buffer[128];
-    serializeJson(doc, buffer);
-    client.publish(pubStatusTopic.c_str(), buffer);
-  }
-
-  if (Firebase.ready()) {
-    String basePath = "/devices/" + String(DEVICE_ID);
-    Firebase.setString(fbdo, basePath + "/status", state);
   }
 }

@@ -852,50 +852,9 @@ document.addEventListener("DOMContentLoaded", () => {
 // SETTINGS PAGE - WIFI SCAN & CONNECT LOGIC
 // =====================================
 document.addEventListener("DOMContentLoaded", () => {
-    const scanWifiBtn = document.getElementById("scanWifiBtn");
     const connectWifiBtn = document.getElementById("connectWifiBtn");
     const homeSsidInput = document.getElementById("homeSsidInput");
     const homePasswordInput = document.getElementById("homePasswordInput");
-    const wifiListOptions = document.getElementById("wifiListOptions");
-
-    // 1. กดปุ่มสแกนหา WiFi (ไม่มี Pop-up เด้ง ทำงานเงียบๆ แล้วใส่ชื่อในช่องทันที)
-    if (scanWifiBtn) {
-        scanWifiBtn.addEventListener("click", async () => {
-            const originalText = scanWifiBtn.textContent;
-            scanWifiBtn.disabled = true;
-            scanWifiBtn.textContent = "⏳ กำลังสแกน...";
-
-            try {
-                // ยิงไปขอรายชื่อ Wi-Fi จาก ESP32 โดยตรง
-                const response = await fetch("http://192.168.4.1/api/scan-wifi");
-                const wifiList = await response.json();
-
-                if (Array.isArray(wifiList) && wifiList.length > 0) {
-                    // เคลียร์รายการเก่าใน Datalist
-                    if (wifiListOptions) wifiListOptions.innerHTML = "";
-
-                    // สกัดเอาชื่อที่ไม่ซ้ำ และไม่เป็นค่าว่าง
-                    const cleanList = [...new Set(wifiList)].filter(ssid => ssid && ssid.trim() !== "");
-
-                    cleanList.forEach(ssid => {
-                        const option = document.createElement("option");
-                        option.value = ssid;
-                        if (wifiListOptions) wifiListOptions.appendChild(option);
-                    });
-
-                    // 🎯 ใส่ชื่อ Wi-Fi สัญญาณแรกเข้าไปในช่องใส่ชื่ออัตโนมัติ
-                    if (homeSsidInput && cleanList.length > 0) {
-                        homeSsidInput.value = cleanList[0];
-                    }
-                }
-            } catch (err) {
-                console.error("สแกน Wi-Fi ไม่สำเร็จ:", err);
-            } finally {
-                scanWifiBtn.disabled = false;
-                scanWifiBtn.textContent = originalText;
-            }
-        });
-    }
 
     // 2. กดปุ่ม บันทึก / เชื่อมต่อ
     if (connectWifiBtn) {

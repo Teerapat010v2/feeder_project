@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งเวลา & ระบบชั่งน้ำหนัก - Fish Feeder</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+
+    <!-- TOP NAVIGATION BAR -->
+    <header class="top-bar">
+        <div class="top-bar-left">
+            <button id="hamburgerBtn" class="btn-icon" aria-label="Open Menu">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+            <div class="brand-logo">
+                <img src="/image/logo-iot.png" alt="Logo" class="top-logo">
+                <span class="brand-title">Fish Feeder</span>
+            </div>
+        </div>
+        <div class="top-bar-right">
+            <span id="connectionStatus" class="status-badge online">● Online</span>
+        </div>
+    </header>
+
+    <!-- LEFT SIDEBAR DRAWER -->
+    <div id="sidebarOverlay" class="sidebar-overlay"></div>
+    <aside id="sidebarDrawer" class="sidebar-drawer">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <img src="/image/logo-iot.png" alt="Logo" class="sidebar-logo">
+                <span>Fish Feeder</span>
+            </div>
+            <button id="closeSidebarBtn" class="btn-icon-sm">&times;</button>
+        </div>
+        <nav class="sidebar-menu">
+            <a href="index.html" class="menu-item">หน้าหลัก</a>
+            <a href="schedule.html" class="menu-item active">ตั้งเวลาให้อาหาร</a>
+            <a href="history.html" class="menu-item">ประวัติการทำงาน</a>
+            <a href="settings.html" class="menu-item">ตั้งค่าอุปกรณ์</a>
+        </nav>
+    </aside>
+
+    <!-- MAIN CONTAINER -->
+    <main class="container">
+        
+        <!-- แท็บสลับหน้า -->
+        <div class="mode-selector">
+            <button id="tabScheduleBtn" class="btn-mode active">ตั้งเวลาให้อาหาร</button>
+            <button id="tabWeightBtn" class="btn-mode">ระบบชั่งน้ำหนัก</button>
+        </div>
+
+        <!-- หน้าที่ 1: ตั้งเวลา & ปริมาณอาหารต่อครั้ง -->
+        <section id="section-schedule" class="page-section">
+            <div class="card">
+                <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>ตั้งเวลาและปริมาณอาหารต่อครั้ง</span>
+                    <span id="scheduleCountBadge" class="status-badge gray" style="font-size: 11px;">0/4 รอบ</span>
+                </div>
+
+                <div id="scheduleContainer" class="schedule-list-wrapper"></div>
+
+                <button id="addScheduleBtn" class="btn-warning" style="margin-top: 10px; min-height: 40px; font-size: 14px;">
+                    เพิ่มรอบให้อาหาร
+                </button>
+
+                <div style="margin-top: 14px;">
+                    <button id="saveScheduleBtn" class="btn-primary">บันทึกตารางเวลาลง Firebase</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- หน้าที่ 2: ระบบชั่งน้ำหนัก -->
+        <section id="section-weight" class="page-section" style="display: none;">
+            <div class="card">
+                <div class="card-header-title">การตั้งค่าระบบชั่งน้ำหนัก (Load Cell)</div>
+
+                <!-- 1. เซ็ตศูนย์ Tare -->
+                <div style="margin-bottom: 16px;">
+                    <label style="font-size: 13px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
+                        ปรับศูนย์ตาชั่ง (Tare)
+                    </label>
+                    <button id="tareBtn" class="btn-warning">Tare (ปรับศูนย์)</button>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
+
+                <!-- 2. Calibration -->
+                <div class="input-group">
+                    <label for="calibWeightInput">น้ำหนักอ้างอิง Calibration (กรัม):</label>
+                    <input type="number" id="calibWeightInput" placeholder="เช่น 100" value="100" min="1">
+                </div>
+                <button id="calibBtn" class="btn-primary" style="background-color: #2563eb; margin-bottom: 16px;">
+                    Calibration (ปรับเทียบค่า)
+                </button>
+
+                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
+
+                <!-- 3. ปริมาณที่ใช้ต่อครั้ง (ซิงค์ตรงกับหน้า index.html) -->
+                <div class="input-group">
+                    <label for="feedAmountInput">ปริมาณอาหารที่ใช้ต่อครั้ง (กรัม):</label>
+                    <input type="number" id="feedAmountInput" placeholder="เช่น 10" value="10" min="1" max="100">
+                </div>
+
+                <button id="saveCalibrationBtn" class="btn-primary">บันทึกค่าลง Firebase</button>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="/app.js"></script>
+</body>
+</html>
