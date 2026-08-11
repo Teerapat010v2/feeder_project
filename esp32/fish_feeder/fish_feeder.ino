@@ -278,6 +278,28 @@ void setup() {
 }
 
 // =================================================================
+// 📌 8.5 ฟังก์ชันส่งสถานะขึ้น MQTT ทันที
+// =================================================================
+void publishMQTTStatus() {
+    float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
+    if (weight < 0) weight = 0.0;
+    
+    StaticJsonDocument<200> doc;
+    doc["online"] = true;
+    doc["weight"] = weight;
+    doc["current_weight"] = weight;
+    doc["status"] = isFeeding ? "FEEDING" : "IDLE";
+    
+    String payload;
+    serializeJson(doc, payload);
+    
+    String statusTopic = "fishfeeder/" + String(DEVICE_ID) + "/status";
+    // ใส่ true ตัวสุดท้ายเพื่อให้ Broker จำค่าล่าสุดไว้ (Retained Message)
+    // ทำให้เวลาเปิดหน้าเว็บใหม่ จะเห็นค่าทันทีไม่ต้องรอรอบส่ง!
+    mqttClient.publish(statusTopic.c_str(), payload.c_str(), true); 
+}
+
+// =================================================================
 // 📌 9. ฟังก์ชันการทำงานหลัก LOOP
 // =================================================================
 void loop() {
@@ -292,22 +314,10 @@ void loop() {
     }
     mqttClient.loop();
 
-    if (millis() - lastMqttPublish >= 5000) {
+    // ลดระยะเวลาจาก 5 วินาที เหลือ 1 วินาที เพื่อให้เว็บดึงน้ำหนักได้แบบ Real-time มากขึ้น
+    if (millis() - lastMqttPublish >= 1000) {
       lastMqttPublish = millis();
-      float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
-      if (weight < 0) weight = 0.0;
-      
-      StaticJsonDocument<200> doc;
-      doc["online"] = true;
-      doc["weight"] = weight;
-      doc["current_weight"] = weight;
-      doc["status"] = isFeeding ? "FEEDING" : "IDLE";
-      
-      String payload;
-      serializeJson(doc, payload);
-      
-      String statusTopic = "fishfeeder/" + String(DEVICE_ID) + "/status";
-      mqttClient.publish(statusTopic.c_str(), payload.c_str());
+      publishMQTTStatus();
     }
   }
 
@@ -342,6 +352,10 @@ void triggerFeeding(int amountGrams) {
   Serial.print(" กรัม (เปิดมอเตอร์ ");
   Serial.print(duration);
   Serial.println(" ms)");
+  
+  if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
+    publishMQTTStatus();
+  }
 }
 
 // =================================================================
@@ -351,6 +365,10 @@ void stopFeeding() {
   isFeeding = false;
   digitalWrite(RELAY_PIN, RELAY_OFF); 
   Serial.println("🛑 หยุดการทำงานมอเตอร์แล้ว");
+  
+  if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
+    publishMQTTStatus();
+  }
 }
 
 // =================================================================
