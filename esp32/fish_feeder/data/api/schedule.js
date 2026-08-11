@@ -2,7 +2,7 @@ process.env.POSTGRES_URL = process.env.POSTGRES_URL || "postgresql://neondb_owne
 const { sql } = require('@vercel/postgres');
 
 module.exports = async function handler(req, res) {
-    const rawDeviceId = req.headers["x-device-id"] || process.env.DEVICE_ID || "device123";
+    const rawDeviceId = req.headers["x-device-id"] || process.env.DEVICE_ID || "Prototype_01";
     const DEVICE_ID = decodeURIComponent(rawDeviceId);
 
     if (req.method === 'GET') {

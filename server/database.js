@@ -1,6 +1,6 @@
 const { sql } = require("@vercel/postgres");
 
-const DEVICE_ID = process.env.DEVICE_ID || "device123";
+const DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
 
 // =======================================
 // DEVICE
