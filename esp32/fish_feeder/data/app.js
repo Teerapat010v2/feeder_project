@@ -215,8 +215,67 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert("❌ สั่งหยุดฉุกเฉินไม่สำเร็จ");
             }
         });
+    // --- 5. อัปเดตเวลาให้อาหาร (Dashboard) ---
+    async function loadDashboardTimes() {
+        const lastFeedTimeEl = document.getElementById("lastFeedTime");
+        const nextFeedTimeEl = document.getElementById("nextFeedTime");
+        if (!lastFeedTimeEl || !nextFeedTimeEl) return; // ไม่ใช่หน้า Dashboard
+
+        try {
+            // ดึงเวลาให้อาหารล่าสุด
+            const historyRes = await fetch("/api/history", {
+                headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+            });
+            if (historyRes.ok) {
+                const history = await historyRes.json();
+                if (history && history.length > 0) {
+                    const lastFeedDate = new Date(history[0].timestamp);
+                    lastFeedTimeEl.textContent = lastFeedDate.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' }) + " น.";
+                }
+            }
+
+            // ดึงเวลาที่จะให้อาหารอัตโนมัติครั้งถัดไป
+            const scheduleRes = await fetch("/api/schedule", {
+                headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+            });
+            if (scheduleRes.ok) {
+                const schedules = await scheduleRes.json();
+                const now = new Date();
+                const currentMinutes = now.getHours() * 60 + now.getMinutes();
+                
+                let nextTimeStr = null;
+                let minDiff = Infinity;
+
+                for (let s of schedules) {
+                    if (s.enable && s.time) {
+                        const [h, m] = s.time.split(":");
+                        const schedMinutes = parseInt(h) * 60 + parseInt(m);
+                        
+                        let diff = schedMinutes - currentMinutes;
+                        if (diff <= 0) {
+                            diff += 24 * 60; // วันพรุ่งนี้
+                        }
+                        
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            nextTimeStr = s.time;
+                        }
+                    }
+                }
+                
+                if (nextTimeStr) {
+                    nextFeedTimeEl.textContent = nextTimeStr + " น.";
+                } else {
+                    nextFeedTimeEl.textContent = "ปิด (Off)";
+                }
+            }
+        } catch (err) {
+            console.warn("โหลดเวลา Dashboard ไม่สำเร็จ", err);
+        }
     }
 
+    // เรียกตอนโหลดหน้าจอ
+    loadDashboardTimes();
 });
 // =====================================
 // AP WIFI SETTINGS LOGIC (settings.html)
