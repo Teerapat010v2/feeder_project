@@ -215,6 +215,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 alert("❌ สั่งหยุดฉุกเฉินไม่สำเร็จ");
             }
         });
+    }
+
     // --- 5. อัปเดตเวลาให้อาหาร (Dashboard) ---
     async function loadDashboardTimes() {
         const lastFeedTimeEl = document.getElementById("lastFeedTime");
