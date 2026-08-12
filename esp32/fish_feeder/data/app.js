@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const feedAmount = document.getElementById("feedAmount");
     const modeToggle = document.getElementById("modeToggle");
 
-    const MAX_CAPACITY_GRAMS = 500; 
+    const MAX_CAPACITY_GRAMS = 5000;
     let DAILY_USAGE_GRAMS = 20; // Default fallback
 
     let lastWeight = 0;
@@ -591,7 +591,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <span style="font-size:14px; margin-left:5px; color:var(--text-muted);">น.</span>
                 </div>
                 <div class="schedule-amount-col" style="display:flex; align-items:center; background:#f0f2f5; padding:5px 15px; border-radius:12px; gap:8px;">
-                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="500" data-index="${index}" style="border:none; background:transparent; font-size:18px; font-weight:bold; color:var(--primary-color); width:50px; text-align:center; outline:none;" required>
+                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="3000" data-index="${index}" style="border:none; background:transparent; font-size:18px; font-weight:bold; color:var(--primary-color); width:50px; text-align:center; outline:none;" required>
                     <span style="font-size: 14px; color: var(--text-muted);">กรัม</span>
                 </div>
                 <div class="schedule-actions" style="display:flex; align-items:center; gap:15px;">

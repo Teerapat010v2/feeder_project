@@ -5,7 +5,7 @@ const mqtt = require("./mqtt");
 const database = require("./database");
 const { checkDeviceAuth } = require("./auth");
 
-const MAX_FEED_GRAMS = 500; // กันสั่งให้อาหารเกินขนาดถัง/มอเตอร์
+const MAX_FEED_GRAMS = 3000; // กันสั่งให้อาหารเกินขนาดถัง/มอเตอร์
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:mm
 const MAX_SCHEDULE_ROUNDS = 4; // ตาม README
 
