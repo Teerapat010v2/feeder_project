@@ -11,6 +11,8 @@
 #include <PubSubClient.h>
 #include <time.h>
 #include "secrets.h"
+#include <ThreeWire.h>
+#include <RtcDS1302.h>
 
 // =================================================================
 // 📌 1. โซนตั้งค่าพินฮาร์ดแวร์ (HARDWARE PIN CONFIG)
@@ -34,6 +36,9 @@
 // =================================================================
 // 📌 3. ประกาศตัวแปรและออบเจ็กต์ของระบบ (SYSTEM OBJECTS)
 // =================================================================
+ThreeWire myWire(21, 22, 14); // DAT, CLK, RST
+RtcDS1302<ThreeWire> Rtc(myWire);
+
 HX711 scale;                    
 WebServer server(80);           
 DNSServer dnsServer;            
@@ -283,6 +288,16 @@ void setup() {
   Serial.print("Device ID: ");
   Serial.println(deviceId);
 
+  Rtc.Begin();
+  if (!Rtc.GetIsRunning()) {
+      Serial.println("⚠️ RTC ไม่ได้ทำงาน หรือถ่านหมด กำลังเริ่มต้นใหม่...");
+      Rtc.SetIsRunning(true);
+  }
+  if (Rtc.GetIsWriteProtected()) {
+      Serial.println("⚠️ RTC ติด Write Protect, ทำการปลดล็อก...");
+      Rtc.SetIsWriteProtected(false);
+  }
+
   pinMode(RELAY_PIN, OUTPUT);
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
@@ -357,6 +372,24 @@ void setup() {
       // 🕒 ซิงค์เวลาจาก NTP
       configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
       Serial.println("🕒 กำลังซิงค์เวลาจาก NTP...");
+      
+      struct tm timeinfo;
+      if (getLocalTime(&timeinfo, 10000)) { // รอสูงสุด 10 วินาที
+        Serial.println("✅ รับเวลาจาก NTP สำเร็จ");
+        // อัปเดตเวลาลง DS1302
+        RtcDateTime compiled = RtcDateTime(
+          timeinfo.tm_year + 1900,
+          timeinfo.tm_mon + 1,
+          timeinfo.tm_mday,
+          timeinfo.tm_hour,
+          timeinfo.tm_min,
+          timeinfo.tm_sec
+        );
+        Rtc.SetDateTime(compiled);
+        Serial.println("✅ บันทึกเวลาลงชิป RTC (DS1302) สำเร็จ!");
+      } else {
+        Serial.println("⚠️ ดึงเวลาจาก NTP ไม่สำเร็จ");
+      }
     } else {
       Serial.println("❌ เชื่อมต่อ Home Wi-Fi ไม่สำเร็จ (ระบบจะใช้ AP Mode ต่อไป)");
     }
@@ -443,22 +476,22 @@ void publishMQTTStatus() {
 }
 
 void checkSchedules() {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    static unsigned long lastNtpErr = 0;
-    if (millis() - lastNtpErr > 10000) {
-      Serial.println("⏳ [NTP] รอซิงค์เวลาจากอินเทอร์เน็ต...");
-      lastNtpErr = millis();
+  if (!Rtc.GetIsRunning()) {
+    static unsigned long lastRtcErr = 0;
+    if (millis() - lastRtcErr > 10000) {
+      Serial.println("⏳ [RTC] รอเวลาจาก DS1302... (เครื่องอาจเพิ่งเปิดและไม่มีเน็ต)");
+      lastRtcErr = millis();
     }
     return; // Time not set yet
   }
 
-  int currentHour = timeinfo.tm_hour;
-  int currentMin = timeinfo.tm_min;
+  RtcDateTime now = Rtc.GetDateTime();
+  int currentHour = now.Hour();
+  int currentMin = now.Minute();
 
   if (currentMin != lastCheckedMinute) {
     lastCheckedMinute = currentMin;
-    Serial.printf("🕒 [NTP] เวลาปัจจุบัน: %02d:%02d | ตารางเวลาที่บันทึกไว้: %d รอบ\n", currentHour, currentMin, scheduleCount);
+    Serial.printf("🕒 [RTC] เวลาปัจจุบัน: %02d:%02d | ตารางเวลาที่บันทึกไว้: %d รอบ\n", currentHour, currentMin, scheduleCount);
     
     if (forceManualMode) {
       Serial.println("🔒 โหมดถูกบังคับเป็น Manual, ข้ามการให้อาหารตามตาราง");
