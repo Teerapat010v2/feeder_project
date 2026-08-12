@@ -118,6 +118,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       stopFeeding();
     } else if (strcmp(action, "SET_MODE") == 0) {
       forceManualMode = (strcmp(doc["mode"] | "AUTO", "MANUAL") == 0);
+      saveModeSettings();
       publishMQTTStatus();
     }
   }
@@ -168,6 +169,32 @@ void updateStatusLED() {
   } else {
     // มีไฟเข้าแต่ยังไม่เชื่อมต่ออะไรเลย = สีแดง
     setRGB(true, false, false);
+  }
+}
+
+// =================================================================
+// 📌 4.5 ฟังก์ชันโหลด/บันทึกโหมด
+// =================================================================
+void saveModeSettings() {
+  File file = SPIFFS.open("/mode.json", "w");
+  if (file) {
+    StaticJsonDocument<128> doc;
+    doc["manual"] = forceManualMode;
+    serializeJson(doc, file);
+    file.close();
+  }
+}
+
+void loadModeSettings() {
+  if (SPIFFS.exists("/mode.json")) {
+    File file = SPIFFS.open("/mode.json", "r");
+    if (file) {
+      StaticJsonDocument<128> doc;
+      if (!deserializeJson(doc, file)) {
+        forceManualMode = doc["manual"] | false;
+      }
+      file.close();
+    }
   }
 }
 
@@ -231,6 +258,7 @@ void setup() {
   }
   Serial.println("✅ SPIFFS Mounted Successfully");
   loadSchedules();
+  loadModeSettings(); // Load persisted mode
 
   preferences.begin("scale_config", true);
   float calib = preferences.getFloat("calib_factor", 220.4);
@@ -354,15 +382,7 @@ void publishMQTTStatus() {
     if (weight < 0) weight = 0.0;
     
     // Check mode
-    String currentMode = "MANUAL";
-    if (!forceManualMode) {
-      for (int i = 0; i < scheduleCount; i++) {
-        if (localSchedules[i].enable) {
-          currentMode = "AUTO";
-          break;
-        }
-      }
-    }
+    String currentMode = forceManualMode ? "MANUAL" : "AUTO";
     
     StaticJsonDocument<256> doc;
     doc["online"] = true;
@@ -580,6 +600,7 @@ void handleSetMode() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   if(server.hasArg("manual")) {
     forceManualMode = (server.arg("manual") == "1" || server.arg("manual") == "true");
+    saveModeSettings();
   }
   publishMQTTStatus();
   server.send(200, "application/json", "{\"success\":true}");

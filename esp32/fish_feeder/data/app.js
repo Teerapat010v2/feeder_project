@@ -170,16 +170,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (modeToggle) {
-        // กู้คืนค่าสถานะจาก localStorage
-        const savedMode = localStorage.getItem("manualMode");
-        if (savedMode !== null) {
-            modeToggle.checked = savedMode === "true";
+        const initialManual = localStorage.getItem("manualMode") === "true";
+        modeToggle.checked = initialManual;
+        
+        const modeEl = document.getElementById("statusCurrentMode");
+        if (modeEl) {
+            modeEl.textContent = initialManual ? "Manual" : "Auto";
+            modeEl.className = initialManual ? "status-value-text warning" : "status-value-text green";
         }
         
         modeToggle.addEventListener("change", (e) => {
             const isManual = e.target.checked;
             localStorage.setItem("manualMode", isManual);
             updateModeUI(isManual);
+            
+            if (modeEl) {
+                modeEl.textContent = isManual ? "Manual" : "Auto";
+                modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
+            }
             
             isModeUpdating = true;
             setTimeout(() => isModeUpdating = false, 3000); // 3-second cooldown
