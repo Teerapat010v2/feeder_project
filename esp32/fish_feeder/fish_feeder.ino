@@ -797,9 +797,13 @@ void updateLocalSchedulesFromJson(String json) {
     localSchedules[scheduleCount].minute = min;
     localSchedules[scheduleCount].amount = amount;
     localSchedules[scheduleCount].enable = enable;
+    
+    Serial.printf("⏰ ตารางเวลา %d: %02d:%02d | %d กรัม | สถานะ: %s\n", 
+      scheduleCount+1, hour, min, amount, enable ? "เปิด" : "ปิด");
+      
     scheduleCount++;
   }
-  Serial.printf("✅ อัปเดตตารางเวลา %d รายการ\n", scheduleCount);
+  Serial.printf("✅ อัปเดตตารางเวลารวม %d รายการ\n", scheduleCount);
 }
 
 void loadSchedules() {
@@ -830,6 +834,13 @@ void handlePostSchedule() {
   if (server.hasArg("plain")) {
     String json = server.arg("plain");
     updateLocalSchedulesFromJson(json);
+    
+    if (mqttClient.connected()) {
+      String syncTopic = "fishfeeder/" + deviceId + "/schedule_update";
+      mqttClient.publish(syncTopic.c_str(), json.c_str());
+      Serial.println("🔄 ส่งอัปเดตตารางเวลาไปยังเซิร์ฟเวอร์ (ออนไลน์) แล้ว");
+    }
+    
     server.send(200, "application/json", "{\"success\":true}");
   } else {
     server.send(400, "application/json", "{\"success\":false}");

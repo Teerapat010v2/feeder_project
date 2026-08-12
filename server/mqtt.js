@@ -37,7 +37,8 @@ const TOPIC = {
     WEIGHT: `fishfeeder/${DEVICE_ID}/weight`,         // Device -> Server
     ALERT: `fishfeeder/${DEVICE_ID}/alert`,           // Device -> Server
     HISTORY: `fishfeeder/${DEVICE_ID}/history`,       // Device -> Server
-    SCHEDULE: `fishfeeder/${DEVICE_ID}/schedule`      // Server -> Device
+    SCHEDULE: `fishfeeder/${DEVICE_ID}/schedule`,     // Server -> Device
+    SCHEDULE_UPDATE: `fishfeeder/${DEVICE_ID}/schedule_update` // Device -> Server (Local UI)
 };
 
 // เดิม subscribe ทุก topic รวมถึง COMMAND/SCHEDULE ที่ตัวเอง publish เอง (ฟัง echo ตัวเองโดยเปล่าประโยชน์)
@@ -46,7 +47,8 @@ const SUBSCRIBE_TOPICS = [
     TOPIC.STATUS,
     TOPIC.WEIGHT,
     TOPIC.ALERT,
-    TOPIC.HISTORY
+    TOPIC.HISTORY,
+    TOPIC.SCHEDULE_UPDATE
 ];
 
 // ==========================
@@ -162,6 +164,10 @@ async function onMessage(topic, message) {
 
             case TOPIC.HISTORY:
                 await handleHistory(data);
+            break;
+
+            case TOPIC.SCHEDULE_UPDATE:
+                await handleScheduleUpdate(data);
             break;
 
         }
@@ -377,6 +383,25 @@ async function schedule(schedules) {
 
     }
 
+}
+
+// ==========================
+// HANDLE SCHEDULE UPDATE (FROM LOCAL)
+// ==========================
+
+async function handleScheduleUpdate(data) {
+    try {
+        const schedulesArray = data.schedules || data;
+        if (Array.isArray(schedulesArray)) {
+            await database.saveSchedules(schedulesArray);
+            if (io) {
+                io.emit("schedule", schedulesArray);
+            }
+            console.log("[MQTT] 🔄 Schedule updated from Local Mode:", schedulesArray.length, "items");
+        }
+    } catch (err) {
+        console.log("[MQTT] Schedule Update Error:", err.message);
+    }
 }
 
 // ==========================
