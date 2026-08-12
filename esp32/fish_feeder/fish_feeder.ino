@@ -630,42 +630,36 @@ void stopFeeding() {
   
   Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม\n", weightBeforeFeed, weightAfterFeed, dispensed);
 
-  if (dispensed >= 1.0) {
-      char timeStr[32] = "Unknown Time";
-      if (Rtc.GetIsRunning()) {
-          RtcDateTime now = Rtc.GetDateTime();
-          snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02dT%02d:%02d:%02d", 
-                   now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second());
-      }
-      if (historyCount < MAX_HISTORY) {
-          feedHistory[historyCount] = { String(timeStr), (int)dispensed, currentFeedMode };
-          historyCount++;
-      } else {
-          for (int i = 1; i < MAX_HISTORY; i++) feedHistory[i-1] = feedHistory[i];
-          feedHistory[MAX_HISTORY-1] = { String(timeStr), (int)dispensed, currentFeedMode };
-      }
-      Serial.println("📝 บันทึกประวัติการให้อาหารลง Memory สำเร็จ");
-  } else {
-      Serial.println("⚠️ อาหารไม่ออกตามจริง! ข้ามการบันทึกประวัติ");
+  char timeStr[32] = "Unknown Time";
+  if (Rtc.GetIsRunning()) {
+      RtcDateTime now = Rtc.GetDateTime();
+      snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02dT%02d:%02d:%02d", 
+               now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second());
   }
+  if (historyCount < MAX_HISTORY) {
+      feedHistory[historyCount] = { String(timeStr), (int)dispensed, currentFeedMode };
+      historyCount++;
+  } else {
+      for (int i = 1; i < MAX_HISTORY; i++) feedHistory[i-1] = feedHistory[i];
+      feedHistory[MAX_HISTORY-1] = { String(timeStr), (int)dispensed, currentFeedMode };
+  }
+  Serial.println("📝 บันทึกประวัติการให้อาหารลง Memory สำเร็จ");
   
   if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
     publishMQTTStatus();
     
-    if (dispensed >= 1.0) {
-      DynamicJsonDocument histDoc(1024);
-      JsonArray array = histDoc.to<JsonArray>();
-      for (int i = historyCount - 1; i >= 0; i--) {
-        JsonObject obj = array.createNestedObject();
-        obj["timestamp"] = feedHistory[i].timestamp;
-        obj["amount"] = feedHistory[i].amount;
-        obj["mode"] = feedHistory[i].mode;
-      }
-      String historyPayload;
-      serializeJson(histDoc, historyPayload);
-      String historyTopic = "fishfeeder/" + deviceId + "/history";
-      mqttClient.publish(historyTopic.c_str(), historyPayload.c_str(), true); // Retained
+    DynamicJsonDocument histDoc(1024);
+    JsonArray array = histDoc.to<JsonArray>();
+    for (int i = historyCount - 1; i >= 0; i--) {
+      JsonObject obj = array.createNestedObject();
+      obj["timestamp"] = feedHistory[i].timestamp;
+      obj["amount"] = feedHistory[i].amount;
+      obj["mode"] = feedHistory[i].mode;
     }
+    String historyPayload;
+    serializeJson(histDoc, historyPayload);
+    String historyTopic = "fishfeeder/" + deviceId + "/history";
+    mqttClient.publish(historyTopic.c_str(), historyPayload.c_str(), true); // Retained
   }
 }
 
