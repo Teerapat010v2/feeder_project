@@ -649,7 +649,7 @@ void stopFeeding() {
   if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
     publishMQTTStatus();
     
-    DynamicJsonDocument histDoc(1024);
+    DynamicJsonDocument histDoc(2048);
     JsonArray array = histDoc.to<JsonArray>();
     for (int i = historyCount - 1; i >= 0; i--) {
       JsonObject obj = array.createNestedObject();
