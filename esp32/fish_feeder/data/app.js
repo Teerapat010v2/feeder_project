@@ -78,6 +78,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     let localFetchTimer = null;
     let isModeUpdating = false;
+    let currentDeviceOnline = false;
 
     // --- ฟังก์ชันอัปเดต UI หน้าจอ ---
     function updateDashboardUI(data, isOnline) {
@@ -96,6 +97,8 @@ document.addEventListener("DOMContentLoaded", () => {
             if (data.scale_status) scaleStat = data.scale_status.toUpperCase();
             if (data.online !== undefined) onlineStatus = data.online;
         }
+
+        currentDeviceOnline = onlineStatus;
 
         if (connStatus) {
             if (onlineStatus) {
@@ -432,20 +435,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const ledOnline = document.getElementById("ledMqtt");
 
     function updateUiLeds() {
-        if (ledPower) ledPower.classList.add("active"); // Power always on if dashboard loaded
-        
-        if (window.isLocalMode) {
-            if (ledLocal) ledLocal.classList.add("active");
+        if (!currentDeviceOnline) {
+            // เครื่องปิดอยู่: ไฟทุกสีจะดับ
+            if (ledPower) ledPower.classList.remove("active");
+            if (ledLocal) ledLocal.classList.remove("active");
             if (ledOnline) ledOnline.classList.remove("active");
         } else {
-            if (ledLocal) ledLocal.classList.remove("active");
-            // Online LED is controlled by MQTT connection state
-            if (ledOnline) {
-                if (mqttClient && mqttClient.connected) {
-                    ledOnline.classList.add("active");
-                } else {
-                    ledOnline.classList.remove("active");
-                }
+            // เสียบปลั๊ก: ไฟสีแดงติด
+            if (ledPower) ledPower.classList.add("active");
+            
+            if (window.isLocalMode) {
+                // บอร์ดปล่อยไวไฟ: ไฟสีเหลืองติด (Local)
+                if (ledLocal) ledLocal.classList.add("active");
+                if (ledOnline) ledOnline.classList.remove("active");
+            } else {
+                // บอร์ดเชื่อมไวไฟ: ไฟสีเขียวติด (Online)
+                if (ledLocal) ledLocal.classList.remove("active");
+                if (ledOnline) ledOnline.classList.add("active");
             }
         }
     }
