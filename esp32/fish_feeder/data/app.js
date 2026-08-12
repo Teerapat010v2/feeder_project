@@ -19,6 +19,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const MAX_CAPACITY_GRAMS = 500; 
     let DAILY_USAGE_GRAMS = 20; // Default fallback
 
+    let lastWeight = 0;
+
+    function recalculateDaysRemaining() {
+        const daysRemainingText = document.getElementById("daysRemainingText");
+        const foodStatusBadge = document.getElementById("foodStatusBadge");
+
+        let daysLeftVal = 0;
+        if (daysRemainingText) {
+            const daysLeft = (lastWeight / DAILY_USAGE_GRAMS);
+            daysLeftVal = daysLeft;
+            daysRemainingText.textContent = `${lastWeight > 0 ? daysLeft.toFixed(1) : "0.0"} วัน`;
+        }
+
+        if (foodStatusBadge) {
+            if (daysLeftVal > 7) {
+                foodStatusBadge.textContent = "🟢 ปกติ";
+                foodStatusBadge.className = "status-badge green";
+            } else if (daysLeftVal >= 3) {
+                foodStatusBadge.textContent = "🟡 เหลือน้อย";
+                foodStatusBadge.className = "status-badge warning";
+            } else {
+                foodStatusBadge.textContent = "🔴 เติมอาหาร";
+                foodStatusBadge.className = "status-badge red";
+            }
+        }
+    }
+
     // Fetch schedules to calculate real daily usage
     fetch("/api/schedule").then(res => res.json()).then(data => {
         if (Array.isArray(data)) {
@@ -26,7 +53,10 @@ document.addEventListener("DOMContentLoaded", () => {
             for (let s of data) {
                 if (s.enable) usage += Number(s.amount);
             }
-            if (usage > 0) DAILY_USAGE_GRAMS = usage;
+            if (usage > 0) {
+                DAILY_USAGE_GRAMS = usage;
+                recalculateDaysRemaining();
+            }
         }
     }).catch(err => console.log("Could not fetch schedules for daily usage"));
 
@@ -83,25 +113,8 @@ document.addEventListener("DOMContentLoaded", () => {
             tankProgressBar.style.width = `${percent}%`;
         }
 
-        let daysLeftVal = 0;
-        if (daysRemainingText) {
-            const daysLeft = (weight / DAILY_USAGE_GRAMS);
-            daysLeftVal = daysLeft;
-            daysRemainingText.textContent = `${weight > 0 ? daysLeft.toFixed(1) : "0.0"} วัน`;
-        }
-
-        if (foodStatusBadge) {
-            if (daysLeftVal > 7) {
-                foodStatusBadge.textContent = "🟢 ปกติ";
-                foodStatusBadge.className = "status-badge green";
-            } else if (daysLeftVal >= 3) {
-                foodStatusBadge.textContent = "🟡 เหลือน้อย";
-                foodStatusBadge.className = "status-badge warning";
-            } else {
-                foodStatusBadge.textContent = "🔴 เติมอาหาร";
-                foodStatusBadge.className = "status-badge red";
-            }
-        }
+        lastWeight = weight;
+        recalculateDaysRemaining();
         
         // Update new status fields
         const modeEl = document.getElementById("statusCurrentMode");
