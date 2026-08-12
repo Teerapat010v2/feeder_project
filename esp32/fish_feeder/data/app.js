@@ -136,7 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (modeEl) {
             if (!onlineStatus) {
-                modeEl.textContent = "เครื่องปิดอยู่";
+                modeEl.textContent = "เครื่องปิด";
                 modeEl.className = "status-value-text gray";
             } else {
                 const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
@@ -146,7 +146,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (motorEl) {
             if (!onlineStatus) {
-                motorEl.textContent = "เครื่องปิดอยู่";
+                motorEl.textContent = "เครื่องปิด";
                 motorEl.className = "status-value-text gray";
             } else {
                 motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
@@ -155,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (scaleEl) {
             if (!onlineStatus) {
-                scaleEl.textContent = "เครื่องปิดอยู่";
+                scaleEl.textContent = "เครื่องปิด";
                 scaleEl.className = "status-value-text gray";
             } else {
                 scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : "ขัดข้อง";
