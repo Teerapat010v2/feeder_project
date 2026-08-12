@@ -14,9 +14,10 @@ const MQTT_OPTIONS = {
     clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
 };
 
-let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
-let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
-let TOPIC_SCHEDULE = `fishfeeder/${DEVICE_ID}/schedule`;
+const TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
+const TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
+const TOPIC_SCHEDULE = `fishfeeder/${DEVICE_ID}/schedule`;
+const TOPIC_HISTORY = `fishfeeder/${DEVICE_ID}/history`;
 
 let mqttClient = null;
 
@@ -258,6 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
             console.log("✅ เชื่อมต่อ HiveMQ สำเร็จ");
             mqttClient.subscribe(TOPIC_STATUS);
             mqttClient.subscribe(TOPIC_SCHEDULE);
+            mqttClient.subscribe(TOPIC_HISTORY);
             if (connStatus) {
                 connStatus.className = "status-badge online";
                 connStatus.innerText = "● Online";
@@ -275,18 +277,30 @@ document.addEventListener("DOMContentLoaded", () => {
             } else if (topic === TOPIC_SCHEDULE) {
                 try {
                     const data = JSON.parse(message.toString());
+                    let payloadSchedules = [];
                     // รองรับข้อมูลที่ตอบกลับมาเป็น { schedules: [...] } หรือ [...] โดยตรง
                     if (data && data.schedules && Array.isArray(data.schedules)) {
-                        schedules = data.schedules;
+                        payloadSchedules = data.schedules;
                     } else if (Array.isArray(data)) {
-                        schedules = data;
-                    } else {
-                        schedules = [];
+                        payloadSchedules = data;
                     }
-                    const scheduleEvent = new CustomEvent('scheduleUpdatedUI');
+                    
+                    const scheduleEvent = new CustomEvent('scheduleUpdatedUI', { detail: payloadSchedules });
                     window.dispatchEvent(scheduleEvent);
                 } catch (e) {
                     console.error("❌ แปลงข้อมูล Schedule MQTT ล้มเหลว", e);
+                }
+            } else if (topic === TOPIC_HISTORY) {
+                try {
+                    const data = JSON.parse(message.toString());
+                    let payloadHistory = [];
+                    if (Array.isArray(data)) {
+                        payloadHistory = data;
+                    }
+                    const historyEvent = new CustomEvent('historyUpdatedUI', { detail: payloadHistory });
+                    window.dispatchEvent(historyEvent);
+                } catch (e) {
+                    console.error("❌ แปลงข้อมูล History MQTT ล้มเหลว", e);
                 }
             }
         });
@@ -901,7 +915,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    window.addEventListener('scheduleUpdatedUI', () => {
+    window.addEventListener('scheduleUpdatedUI', (e) => {
+        if (e.detail && Array.isArray(e.detail)) {
+            schedules = e.detail;
+        }
         renderSchedules();
     });
 
@@ -927,6 +944,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 
     async function loadHistory() {
+        if (!window.isLocalMode) {
+            renderHistory([]); // Clear the table and wait for MQTT
+            return; 
+        }
         try {
             const response = await fetch("/api/history");
             if (response.ok) {

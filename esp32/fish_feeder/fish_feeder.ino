@@ -70,16 +70,29 @@ ScheduleEntry localSchedules[4];
 int scheduleCount = 0;
 int lastCheckedMinute = -1;
 
+// --- History ---
+#define MAX_HISTORY 10
+struct HistoryEntry {
+  String timestamp;
+  int amount;
+  String mode;
+};
+HistoryEntry feedHistory[MAX_HISTORY];
+int historyCount = 0;
+
 // --- ประกาศชื่อฟังก์ชันล่วงหน้า (Function Prototypes) ---
 void triggerFeeding(int amountGrams, String mode = "manual");
 void stopFeeding();
 void handleApiStatus();
 void handleLocalFeed();
 void handleLocalStop();
+void handleSetMode();
 void handleSaveWifi();
 void handleSaveApWifi();
 void handleResetWifi();
 void handleScanWifi();
+void handleGetHistory();
+void handleClearHistory();
 void handleDummyEmptyArray();
 void handleDummySuccess();
 bool handleFileRead(String path);
@@ -195,6 +208,21 @@ void connectMQTT() {
           mqttClient.publish(scheduleTopic.c_str(), json.c_str(), true); // retain=true
         }
       }
+
+      // ส่งประวัติล่าสุด
+      DynamicJsonDocument histDoc(1024);
+      JsonArray array = histDoc.to<JsonArray>();
+      for (int i = historyCount - 1; i >= 0; i--) {
+        JsonObject obj = array.createNestedObject();
+        obj["timestamp"] = feedHistory[i].timestamp;
+        obj["amount"] = feedHistory[i].amount;
+        obj["mode"] = feedHistory[i].mode;
+      }
+      String histPayload;
+      serializeJson(histDoc, histPayload);
+      String historyTopic = "fishfeeder/" + deviceId + "/history";
+      mqttClient.publish(historyTopic.c_str(), histPayload.c_str(), true);
+
     } else {
       Serial.print("❌ ล้มเหลว State=");
       Serial.print(mqttClient.state());
@@ -427,8 +455,8 @@ void setup() {
 
   // Endpoint ป้องกันหน้าเว็บค้าง
   server.on("/api/verify", HTTP_POST, handleDummySuccess);
-  server.on("/api/history", HTTP_GET, handleDummyEmptyArray);
-  server.on("/api/history", HTTP_DELETE, handleDummySuccess);
+  server.on("/api/history", HTTP_GET, handleGetHistory);
+  server.on("/api/history", HTTP_DELETE, handleClearHistory);
   server.on("/api/alerts", HTTP_GET, handleDummyEmptyArray);
   server.on("/api/schedule", HTTP_GET, handleGetSchedule);
   server.on("/api/schedule", HTTP_POST, handlePostSchedule);
@@ -601,23 +629,42 @@ void stopFeeding() {
   float dispensed = weightBeforeFeed - weightAfterFeed;
   
   Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม\n", weightBeforeFeed, weightAfterFeed, dispensed);
+
+  if (dispensed >= 1.0) {
+      char timeStr[32] = "Unknown Time";
+      if (Rtc.GetIsRunning()) {
+          RtcDateTime now = Rtc.GetDateTime();
+          snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02dT%02d:%02d:%02d", 
+                   now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second());
+      }
+      if (historyCount < MAX_HISTORY) {
+          feedHistory[historyCount] = { String(timeStr), (int)dispensed, currentFeedMode };
+          historyCount++;
+      } else {
+          for (int i = 1; i < MAX_HISTORY; i++) feedHistory[i-1] = feedHistory[i];
+          feedHistory[MAX_HISTORY-1] = { String(timeStr), (int)dispensed, currentFeedMode };
+      }
+      Serial.println("📝 บันทึกประวัติการให้อาหารลง Memory สำเร็จ");
+  } else {
+      Serial.println("⚠️ อาหารไม่ออกตามจริง! ข้ามการบันทึกประวัติ");
+  }
   
   if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
     publishMQTTStatus();
     
-    // ส่งประวัติเฉพาะเมื่อมีอาหารออกจริงๆ (มากกว่า 1 กรัม)
     if (dispensed >= 1.0) {
-      StaticJsonDocument<200> historyDoc;
-      historyDoc["amount"] = dispensed;
-      historyDoc["mode"] = currentFeedMode;
-      
+      DynamicJsonDocument histDoc(1024);
+      JsonArray array = histDoc.to<JsonArray>();
+      for (int i = historyCount - 1; i >= 0; i--) {
+        JsonObject obj = array.createNestedObject();
+        obj["timestamp"] = feedHistory[i].timestamp;
+        obj["amount"] = feedHistory[i].amount;
+        obj["mode"] = feedHistory[i].mode;
+      }
       String historyPayload;
-      serializeJson(historyDoc, historyPayload);
+      serializeJson(histDoc, historyPayload);
       String historyTopic = "fishfeeder/" + deviceId + "/history";
-      mqttClient.publish(historyTopic.c_str(), historyPayload.c_str());
-      Serial.println("📝 บันทึกประวัติการให้อาหารสำเร็จ");
-    } else {
-      Serial.println("⚠️ อาหารไม่ออกตามจริง! ข้ามการบันทึกประวัติ");
+      mqttClient.publish(historyTopic.c_str(), historyPayload.c_str(), true); // Retained
     }
   }
 }
@@ -779,6 +826,35 @@ void handleResetWifi() {
   server.send(200, "application/json", "{\"success\":true,\"message\":\"ล้างค่าเครือข่ายเรียบร้อย\"}");
   delay(1000);
   ESP.restart();
+}
+
+// =================================================================
+// 📌 API ประวัติการทำงาน (History)
+// =================================================================
+void handleGetHistory() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  DynamicJsonDocument doc(1024);
+  JsonArray array = doc.to<JsonArray>();
+  for (int i = historyCount - 1; i >= 0; i--) {
+    JsonObject obj = array.createNestedObject();
+    obj["timestamp"] = feedHistory[i].timestamp;
+    obj["amount"] = feedHistory[i].amount;
+    obj["mode"] = feedHistory[i].mode;
+  }
+  String response;
+  serializeJson(doc, response);
+  server.send(200, "application/json", response);
+}
+
+void handleClearHistory() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  historyCount = 0;
+  
+  if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
+      String historyTopic = "fishfeeder/" + deviceId + "/history";
+      mqttClient.publish(historyTopic.c_str(), "[]", true);
+  }
+  server.send(200, "application/json", "{\"status\":\"success\"}");
 }
 
 // =================================================================
