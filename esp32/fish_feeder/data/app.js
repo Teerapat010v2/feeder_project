@@ -898,6 +898,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 saveScheduleBtn.disabled = false;
                 saveScheduleBtn.textContent = "บันทึกตารางเวลา";
             }
+        });
+    }
+
     window.addEventListener('scheduleUpdatedUI', () => {
         renderSchedules();
     });
