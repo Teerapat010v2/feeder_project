@@ -214,7 +214,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (window.isLocalMode) {
                 try {
-                    const response = await fetch(`/local-mode?manual=${isManual ? '1' : '0'}`);
+                    const response = await fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`);
                     const result = await response.json();
                     if (result.success) {
                         alert("✅ เปลี่ยนโหมด (Local) สำเร็จ");
@@ -707,29 +707,29 @@ document.addEventListener("DOMContentLoaded", () => {
             const row = document.createElement("div");
             row.className = "schedule-row";
             row.innerHTML = `
-                <div class="schedule-time-col" style="display:flex; align-items:center; background:#f0f2f5; padding:5px 15px; border-radius:12px; gap:5px;">
-                    <select class="time-hour-input" data-index="${index}" style="appearance:none; border:none; background:transparent; font-size:24px; font-weight:bold; color:var(--primary-color); outline:none; text-align:center;">
+                <div class="schedule-time-col">
+                    <select class="time-hour-input" data-index="${index}">
                         ${Array.from({length:24}, (_,i) => `<option value="${i.toString().padStart(2,'0')}" ${item.time.split(':')[0] === i.toString().padStart(2,'0') ? 'selected' : ''}>${i.toString().padStart(2,'0')}</option>`).join('')}
                     </select>
-                    <span style="font-size:24px; font-weight:bold; color:var(--text-color);">:</span>
-                    <select class="time-minute-input" data-index="${index}" style="appearance:none; border:none; background:transparent; font-size:24px; font-weight:bold; color:var(--primary-color); outline:none; text-align:center;">
+                    <span class="time-colon">:</span>
+                    <select class="time-minute-input" data-index="${index}">
                         ${Array.from({length:60}, (_,i) => `<option value="${i.toString().padStart(2,'0')}" ${item.time.split(':')[1] === i.toString().padStart(2,'0') ? 'selected' : ''}>${i.toString().padStart(2,'0')}</option>`).join('')}
                     </select>
-                    <span style="font-size:14px; margin-left:5px; color:var(--text-muted);">น.</span>
+                    <span class="time-suffix">น.</span>
                 </div>
-                <div class="schedule-amount-col" style="display:flex; align-items:center; background:#f0f2f5; padding:5px 15px; border-radius:12px; gap:8px;">
-                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="3000" data-index="${index}" style="border:none; background:transparent; font-size:18px; font-weight:bold; color:var(--primary-color); width:50px; text-align:center; outline:none;" required>
-                    <span style="font-size: 14px; color: var(--text-muted);">กรัม</span>
+                <div class="schedule-amount-col">
+                    <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="3000" data-index="${index}" required>
+                    <span class="amount-suffix">กรัม</span>
                 </div>
-                <div class="schedule-actions" style="display:flex; align-items:center; gap:15px;">
-                    <label class="toggle-switch-labeled" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-                        <input type="checkbox" class="enable-toggle" data-index="${index}" ${item.enable ? "checked" : ""} style="display:none;">
-                        <div class="toggle-ui" style="width:50px; height:26px; border-radius:13px; background:${item.enable ? 'var(--primary-color)' : '#ccc'}; position:relative; transition:0.3s;">
-                            <div class="toggle-knob" style="width:22px; height:22px; border-radius:50%; background:#fff; position:absolute; top:2px; left:${item.enable ? '26px' : '2px'}; transition:0.3s;"></div>
+                <div class="schedule-actions">
+                    <label class="toggle-switch-labeled">
+                        <input type="checkbox" class="enable-toggle" data-index="${index}" ${item.enable ? "checked" : ""}>
+                        <div class="toggle-ui" style="background:${item.enable ? 'var(--primary-color)' : '#ccc'};">
+                            <div class="toggle-knob" style="left:${item.enable ? '26px' : '2px'};"></div>
                         </div>
-                        <span class="toggle-label" style="font-size:14px; font-weight:bold; color:${item.enable ? 'var(--primary-color)' : 'var(--text-muted)'}; min-width:30px;">${item.enable ? "เปิด" : "ปิด"}</span>
+                        <span class="toggle-label" style="color:${item.enable ? 'var(--primary-color)' : 'var(--text-muted)'};">${item.enable ? "เปิด" : "ปิด"}</span>
                     </label>
-                    <button class="btn-icon-sm btn-delete-schedule" data-index="${index}" style="background:#ffecec; color:#ef4444; border-radius:8px; padding:8px;">
+                    <button class="btn-icon-sm btn-delete-schedule" data-index="${index}">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </div>
@@ -802,7 +802,15 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             const response = await fetch("/api/schedule");
             if (response.ok) {
-                schedules = await response.json();
+                const data = await response.json();
+                // รองรับข้อมูลที่ตอบกลับมาเป็น { schedules: [...] } หรือ [...] โดยตรง
+                if (data && data.schedules && Array.isArray(data.schedules)) {
+                    schedules = data.schedules;
+                } else if (Array.isArray(data)) {
+                    schedules = data;
+                } else {
+                    schedules = [];
+                }
                 renderSchedules();
             }
         } catch (err) {

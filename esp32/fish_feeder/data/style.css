@@ -937,3 +937,113 @@ input:checked + .slider:before {
     border-color: var(--primary-color);
     background: #fff;
 }
+
+/* ---------- 13. SCHEDULE ROW FIX ---------- */
+.schedule-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+.schedule-time-col, .schedule-amount-col {
+    display: flex;
+    align-items: center;
+    background: #f0f2f5;
+    padding: 5px 10px;
+    border-radius: 12px;
+    gap: 5px;
+}
+.time-hour-input, .time-minute-input {
+    appearance: none;
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--primary-color);
+    outline: none;
+    text-align: center;
+}
+.time-colon {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+.time-suffix, .amount-suffix {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+.amount-input {
+    border: none;
+    background: transparent;
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--primary-color);
+    width: 45px;
+    text-align: center;
+    outline: none;
+}
+.schedule-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+.toggle-switch-labeled {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.toggle-ui {
+    width: 50px;
+    height: 26px;
+    border-radius: 13px;
+    position: relative;
+    transition: 0.3s;
+}
+.toggle-knob {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    transition: 0.3s;
+}
+.toggle-label {
+    font-size: 14px;
+    font-weight: bold;
+    min-width: 30px;
+}
+.btn-delete-schedule {
+    background: #ffecec;
+    color: #ef4444;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+@media (max-width: 480px) {
+    .schedule-row {
+        flex-wrap: wrap;
+        justify-content: space-between;
+        background: #fff;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .schedule-time-col {
+        flex: 1;
+        justify-content: center;
+    }
+    .schedule-amount-col {
+        flex: 1;
+        justify-content: center;
+    }
+    .schedule-actions {
+        width: 100%;
+        margin-left: 0;
+        justify-content: space-between;
+        margin-top: 5px;
+    }
+}
