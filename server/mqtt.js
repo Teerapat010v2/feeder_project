@@ -311,10 +311,10 @@ async function handleHistory(data) {
     try {
         let latestData = data;
         
-        // If the new firmware sends an array of history, extract the latest one (index 0)
+        // If the new firmware sends an array of history, extract the latest one (which is at the end of the array)
         if (Array.isArray(data)) {
             if (data.length === 0) return;
-            latestData = data[0];
+            latestData = data[data.length - 1];
         }
 
         const history = {
