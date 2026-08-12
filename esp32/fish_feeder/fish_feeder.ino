@@ -185,6 +185,16 @@ void connectMQTT() {
       
       // ส่งสถานะ Online ทันทีเมื่อเชื่อมต่อสำเร็จ
       publishMQTTStatus();
+      
+      // ส่งตารางเวลาล่าสุดให้หน้าเว็บออนไลน์
+      if (SPIFFS.exists("/schedules.json")) {
+        File file = SPIFFS.open("/schedules.json", FILE_READ);
+        if (file) {
+          String json = file.readString();
+          file.close();
+          mqttClient.publish(scheduleTopic.c_str(), json.c_str(), true); // retain=true
+        }
+      }
     } else {
       Serial.print("❌ ล้มเหลว State=");
       Serial.print(mqttClient.state());

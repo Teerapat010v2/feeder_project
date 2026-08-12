@@ -825,7 +825,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // โหลดข้อมูลเริ่มต้น
     async function loadSchedules() {
-        if (!window.isLocalMode) return; // Online mode ใช้ MQTT รับค่าแทน ไม่ต้อง Fetch
+        if (!window.isLocalMode) {
+            renderSchedules(); // Render UI ว่างๆ รอรับข้อมูลจาก MQTT
+            return;
+        }
         try {
             const response = await fetch("/api/schedule");
             if (response.ok) {
