@@ -902,7 +902,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (err.message === "MQTT_BLOCKED") {
                     alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker หรือ Brave Shields แล้วรีเฟรชหน้าเว็บ)");
                 } else {
-                    alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
+                    alert("❌ Error (Tare): " + err.message);
                 }
             } finally {
                 tareBtn.textContent = "Tare (ปรับศูนย์)";
@@ -946,7 +946,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (err.message === "MQTT_BLOCKED") {
                     alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker หรือ Brave Shields แล้วรีเฟรชหน้าเว็บ)");
                 } else {
-                    alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
+                    alert("❌ Error (Calib): " + err.message);
                 }
             } finally {
                 calibBtn.textContent = "Calibration (ปรับเทียบค่า)";
