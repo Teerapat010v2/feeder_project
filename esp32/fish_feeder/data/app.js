@@ -77,6 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     let mqttClient = null;
     let localFetchTimer = null;
+    let isModeUpdating = false;
 
     // --- ฟังก์ชันอัปเดต UI หน้าจอ ---
     function updateDashboardUI(data, isOnline) {
@@ -125,9 +126,9 @@ document.addEventListener("DOMContentLoaded", () => {
             modeEl.textContent = mode === "AUTO" ? "Auto" : "Manual";
             modeEl.className = mode === "AUTO" ? "status-value-text green" : "status-value-text warning";
             
-            // Sync toggle switch visually with real device state
+            // Sync toggle switch visually with real device state, but ignore if user just toggled it
             const modeToggle = document.getElementById("modeToggle");
-            if (modeToggle) {
+            if (modeToggle && !isModeUpdating) {
                 const currentToggleIsManual = modeToggle.checked;
                 if (mode === "AUTO" && currentToggleIsManual) {
                     modeToggle.checked = false;
@@ -180,6 +181,9 @@ document.addEventListener("DOMContentLoaded", () => {
             localStorage.setItem("manualMode", isManual);
             updateModeUI(isManual);
             
+            isModeUpdating = true;
+            setTimeout(() => isModeUpdating = false, 3000); // 3-second cooldown
+
             // Sync with ESP32 in real-time
             if (isLocalMode) {
                 fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`).catch(console.error);
