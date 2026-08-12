@@ -3,6 +3,22 @@
 // =====================================
 const DEVICE_ID = "Prototype_01";
 
+// --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
+window.isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
+
+// --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
+const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_OPTIONS = {
+    username: "teerapat",
+    password: "Teerapat99",
+    clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
+};
+
+let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
+let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
+
+let mqttClient = null;
+
 document.addEventListener("DOMContentLoaded", () => {
     // --- 1. ประกาศตัวแปร DOM Elements จาก index.html ---
     const tankWeightText = document.getElementById("tankWeightText");
@@ -59,23 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
     }).catch(err => console.log("Could not fetch schedules for daily usage"));
-
-    // --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
-    // ถ้ารันบน IP (192.168.x.x) ให้ใช้ Local Mode ถ้าเป็นโดเมน (vercel) ให้ใช้ Online Mode
-    window.isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
     
-    // --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
-    const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
-    const MQTT_OPTIONS = {
-        username: "teerapat",
-        password: "Teerapat99",
-        clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
-    };
-    
-    let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
-    let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
-    
-    let mqttClient = null;
     let localFetchTimer = null;
     let isModeUpdating = false;
 
