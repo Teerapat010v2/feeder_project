@@ -892,7 +892,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const tareBtn = document.getElementById("tareBtn");
     const calibBtn = document.getElementById("calibBtn");
     const calibWeightInput = document.getElementById("calibWeightInput");
-    const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
 
     if (tareBtn) {
         tareBtn.addEventListener("click", async () => {
