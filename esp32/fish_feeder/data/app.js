@@ -93,7 +93,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (modeToggle) {
-        modeToggle.addEventListener("change", (e) => updateModeUI(e.target.checked));
+        // กู้คืนค่าสถานะจาก localStorage
+        const savedMode = localStorage.getItem("manualMode");
+        if (savedMode !== null) {
+            modeToggle.checked = savedMode === "true";
+        }
+        
+        modeToggle.addEventListener("change", (e) => {
+            const isManual = e.target.checked;
+            localStorage.setItem("manualMode", isManual);
+            updateModeUI(isManual);
+        });
         updateModeUI(modeToggle.checked);
     }
 
