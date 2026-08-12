@@ -47,6 +47,7 @@ unsigned long feedDuration = 0;
 unsigned long lastMqttPublish = 0;
 String deviceId = "feeder_";
 float weightBeforeFeed = 0.0;
+bool forceManualMode = false;
 String currentFeedMode = "manual";
 
 // --- NTP & Scheduling ---
@@ -115,6 +116,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       triggerFeeding(amount, mode);
     } else if (strcmp(action, "EMERGENCY_STOP") == 0) {
       stopFeeding();
+    } else if (strcmp(action, "SET_MODE") == 0) {
+      forceManualMode = (strcmp(doc["mode"] | "AUTO", "MANUAL") == 0);
+      publishMQTTStatus();
     }
   }
 }
@@ -303,6 +307,7 @@ void setup() {
   server.on("/local-tare", HTTP_GET, handleLocalTare);
   server.on("/local-calib", HTTP_GET, handleLocalCalibrate);
   server.on("/api/stop", handleLocalStop);
+  server.on("/api/set-mode", HTTP_GET, handleSetMode);
   
   // เส้นทางหน้า Settings และ Wi-Fi
   server.on("/api/save-wifi", handleSaveWifi);   
@@ -350,10 +355,12 @@ void publishMQTTStatus() {
     
     // Check mode
     String currentMode = "MANUAL";
-    for (int i = 0; i < scheduleCount; i++) {
-      if (localSchedules[i].enable) {
-        currentMode = "AUTO";
-        break;
+    if (!forceManualMode) {
+      for (int i = 0; i < scheduleCount; i++) {
+        if (localSchedules[i].enable) {
+          currentMode = "AUTO";
+          break;
+        }
       }
     }
     
@@ -393,6 +400,11 @@ void checkSchedules() {
   if (currentMin != lastCheckedMinute) {
     lastCheckedMinute = currentMin;
     Serial.printf("🕒 [NTP] เวลาปัจจุบัน: %02d:%02d | ตารางเวลาที่บันทึกไว้: %d รอบ\n", currentHour, currentMin, scheduleCount);
+    
+    if (forceManualMode) {
+      Serial.println("🔒 โหมดถูกบังคับเป็น Manual, ข้ามการให้อาหารตามตาราง");
+      return;
+    }
     
     for (int i = 0; i < scheduleCount; i++) {
       if (localSchedules[i].enable && localSchedules[i].hour == currentHour && localSchedules[i].minute == currentMin) {
@@ -559,6 +571,18 @@ void handleLocalFeed() {
   
   String response = "{\"success\":true,\"message\":\"กำลังปล่อยอาหาร " + String(amount) + " กรัม\"}";
   server.send(200, "application/json", response);
+}
+
+// =================================================================
+// 📌 13.5. API เปลี่ยนโหมด
+// =================================================================
+void handleSetMode() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if(server.hasArg("manual")) {
+    forceManualMode = (server.arg("manual") == "1" || server.arg("manual") == "true");
+  }
+  publishMQTTStatus();
+  server.send(200, "application/json", "{\"success\":true}");
 }
 
 // =================================================================

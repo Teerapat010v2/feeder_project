@@ -123,7 +123,22 @@ document.addEventListener("DOMContentLoaded", () => {
         
         if (modeEl) {
             modeEl.textContent = mode === "AUTO" ? "Auto" : "Manual";
-            modeEl.className = mode === "AUTO" ? "status-value-text green" : "status-value-text gray";
+            modeEl.className = mode === "AUTO" ? "status-value-text green" : "status-value-text warning";
+            
+            // Sync toggle switch visually with real device state
+            const modeToggle = document.getElementById("modeToggle");
+            if (modeToggle) {
+                const currentToggleIsManual = modeToggle.checked;
+                if (mode === "AUTO" && currentToggleIsManual) {
+                    modeToggle.checked = false;
+                    localStorage.setItem("manualMode", "false");
+                    updateModeUI(false);
+                } else if (mode === "MANUAL" && !currentToggleIsManual) {
+                    modeToggle.checked = true;
+                    localStorage.setItem("manualMode", "true");
+                    updateModeUI(true);
+                }
+            }
         }
         if (motorEl) {
             motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
@@ -164,6 +179,16 @@ document.addEventListener("DOMContentLoaded", () => {
             const isManual = e.target.checked;
             localStorage.setItem("manualMode", isManual);
             updateModeUI(isManual);
+            
+            // Sync with ESP32 in real-time
+            if (isLocalMode) {
+                fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`).catch(console.error);
+            } else if (mqttClient && mqttClient.connected) {
+                mqttClient.publish(`fishfeeder/${DEVICE_ID}/cmd/command`, JSON.stringify({
+                    action: "SET_MODE",
+                    mode: isManual ? "MANUAL" : "AUTO"
+                }));
+            }
         });
         updateModeUI(modeToggle.checked);
     }
