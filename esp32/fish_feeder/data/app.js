@@ -127,22 +127,41 @@ document.addEventListener("DOMContentLoaded", () => {
             const currentIsManual = data.mode.toUpperCase() === "MANUAL";
             if (modeToggle && modeToggle.checked !== currentIsManual) {
                 modeToggle.checked = currentIsManual;
-                updateModeUI(currentIsManual);
+                updateModeUI(currentIsManual, onlineStatus);
             }
         }
 
         if (modeEl) {
-            const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
-            modeEl.textContent = isManual ? "Manual" : "Auto";
-            modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
+            if (!onlineStatus) {
+                modeEl.textContent = "-";
+                modeEl.className = "status-value-text gray";
+            } else {
+                const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
+                modeEl.textContent = isManual ? "Manual" : "Auto";
+                modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
+            }
         }
         if (motorEl) {
-            motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
-            motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
+            motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : (!onlineStatus ? "ปิดเครื่อง" : "พร้อม"));
+            motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : (!onlineStatus ? "status-value-text gray" : "status-value-text green"));
         }
         if (scaleEl) {
-            scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : "ขัดข้อง";
-            scaleEl.className = scaleStat === "NORMAL" ? "status-value-text green" : "status-value-text red";
+            scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : (!onlineStatus ? "ปิดเครื่อง" : "ขัดข้อง");
+            scaleEl.className = scaleStat === "NORMAL" ? "status-value-text green" : (!onlineStatus ? "status-value-text gray" : "status-value-text red");
+        }
+        
+        // Disable controls if offline
+        if (modeToggle) modeToggle.disabled = !onlineStatus;
+        if (feedBtn) feedBtn.disabled = !onlineStatus || (modeToggle && !modeToggle.checked);
+        if (feedAmount) feedAmount.disabled = !onlineStatus || (modeToggle && !modeToggle.checked);
+        if (stopBtn) stopBtn.disabled = !onlineStatus;
+        
+        if (!onlineStatus) {
+            labelAuto?.classList.remove("active");
+            labelManual?.classList.remove("active");
+        } else {
+            const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
+            updateModeUI(isManual, onlineStatus);
         }
     }
 
@@ -150,7 +169,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const labelAuto = document.getElementById("label-auto");
     const labelManual = document.getElementById("label-manual");
 
-    function updateModeUI(isManual) {
+    function updateModeUI(isManual, onlineStatus = true) {
+        if (!onlineStatus) return; // Prevent overwriting if offline
+        
         if (isManual) {
             labelManual?.classList.add("active");
             labelAuto?.classList.remove("active");
