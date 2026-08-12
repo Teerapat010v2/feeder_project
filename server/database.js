@@ -11,8 +11,8 @@ async function updateDevice(data) {
         const device = await getDevice();
         if (!device) {
             await sql`
-                INSERT INTO device_state (device_id, online, feeding, weight, food_level, daily_usage, firmware, ip, wifi, last_seen)
-                VALUES (${DEVICE_ID}, ${data.online ?? false}, ${data.feeding ?? false}, ${data.weight ?? 0}, ${data.foodLevel ?? 'green'}, ${data.dailyUsage ?? 100}, ${data.firmware ?? null}, ${data.ip ?? null}, ${data.wifi ?? 0}, CURRENT_TIMESTAMP)
+                INSERT INTO device_state (device_id, online, feeding, weight, food_level, daily_usage, firmware, ip, wifi, last_seen, feed_amount)
+                VALUES (${DEVICE_ID}, ${data.online ?? false}, ${data.feeding ?? false}, ${data.weight ?? 0}, ${data.foodLevel ?? 'green'}, ${data.dailyUsage ?? 100}, ${data.firmware ?? null}, ${data.ip ?? null}, ${data.wifi ?? 0}, CURRENT_TIMESTAMP, ${data.feedAmount ?? 10})
             `;
         } else {
             // Update only provided fields
@@ -25,6 +25,7 @@ async function updateDevice(data) {
             if (data.firmware !== undefined) setClauses.push(`firmware = '${data.firmware}'`);
             if (data.ip !== undefined) setClauses.push(`ip = '${data.ip}'`);
             if (data.wifi !== undefined) setClauses.push(`wifi = ${data.wifi}`);
+            if (data.feedAmount !== undefined) setClauses.push(`feed_amount = ${data.feedAmount}`);
             
             if (setClauses.length > 0) {
                 // Direct interpolation is unsafe for generic usage but safe here since we control the fields
@@ -54,7 +55,8 @@ async function getDevice() {
             firmware: row.firmware,
             ip: row.ip,
             wifi: Number(row.wifi),
-            lastSeen: row.last_seen
+            lastSeen: row.last_seen,
+            feedAmount: Number(row.feed_amount)
         };
     } catch (err) {
         console.error("DB Error (getDevice):", err);

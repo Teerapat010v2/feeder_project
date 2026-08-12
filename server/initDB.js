@@ -17,6 +17,7 @@ async function initDB() {
                 firmware VARCHAR(20),
                 ip VARCHAR(20),
                 wifi NUMERIC DEFAULT 0,
+                feed_amount NUMERIC DEFAULT 10,
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `;

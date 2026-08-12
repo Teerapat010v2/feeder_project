@@ -122,10 +122,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const motorEl = document.getElementById("statusMotor");
         const scaleEl = document.getElementById("statusSensor");
         
+        // Handle Mode Toggle (Ignore if isModeUpdating is true)
+        if (!isModeUpdating && data.mode) {
+            const currentIsManual = data.mode.toUpperCase() === "MANUAL";
+            if (modeToggle && modeToggle.checked !== currentIsManual) {
+                modeToggle.checked = currentIsManual;
+                updateModeUI(currentIsManual);
+            }
+        }
+
         if (modeEl) {
-            // เราจะไม่ให้ MQTT บังคับเปลี่ยนข้อความหรือสวิตช์โหมดอีกต่อไป 
-            // ปล่อยให้ LocalStorage และ Toggle Switch เป็นตัวควบคุม UI เพียงอย่างเดียว
-            // แต่จะรับค่ามาตรวจสอบเฉยๆ ว่าตรงกันไหม (เผื่อใช้ debug)
+            const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
+            modeEl.textContent = isManual ? "Manual" : "Auto";
+            modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
         }
         if (motorEl) {
             motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
@@ -156,39 +165,52 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (modeToggle) {
-        const initialManual = localStorage.getItem("manualMode") === "true";
-        modeToggle.checked = initialManual;
-        
-        const modeEl = document.getElementById("statusCurrentMode");
-        if (modeEl) {
-            modeEl.textContent = initialManual ? "Manual" : "Auto";
-            modeEl.className = initialManual ? "status-value-text warning" : "status-value-text green";
-        }
-        
-        modeToggle.addEventListener("change", (e) => {
+        modeToggle.addEventListener("change", async (e) => {
             const isManual = e.target.checked;
-            localStorage.setItem("manualMode", isManual);
+            
+            // Set debouncing flag
+            isModeUpdating = true;
             updateModeUI(isManual);
             
+            const modeEl = document.getElementById("statusCurrentMode");
             if (modeEl) {
                 modeEl.textContent = isManual ? "Manual" : "Auto";
                 modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
             }
             
-            isModeUpdating = true;
-            setTimeout(() => isModeUpdating = false, 3000); // 3-second cooldown
-
-            // Sync with ESP32 in real-time
             if (window.isLocalMode) {
-                fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`).catch(console.error);
-            } else if (mqttClient && mqttClient.connected) {
-                mqttClient.publish(`fishfeeder/${DEVICE_ID}/cmd/command`, JSON.stringify({
-                    action: "SET_MODE",
-                    mode: isManual ? "MANUAL" : "AUTO"
-                }));
+                try {
+                    const response = await fetch(`/local-mode?manual=${isManual ? '1' : '0'}`);
+                    const result = await response.json();
+                    if (result.success) {
+                        alert("✅ เปลี่ยนโหมด (Local) สำเร็จ");
+                    } else {
+                        modeToggle.checked = !isManual; // Revert
+                        updateModeUI(!isManual);
+                    }
+                } catch (err) {
+                    modeToggle.checked = !isManual; // Revert
+                    updateModeUI(!isManual);
+                    alert("❌ เปลี่ยนโหมดไม่สำเร็จ (Local)");
+                }
+            } else {
+                if (!window.isLocalMode && typeof mqtt !== 'undefined') {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_MODE", mode: isManual ? "MANUAL" : "AUTO" }));
+                        alert(`✅ เปลี่ยนเป็นโหมด ${isManual ? 'MANUAL' : 'AUTO'} แล้ว`);
+                    } else {
+                        modeToggle.checked = !isManual;
+                        updateModeUI(!isManual);
+                        alert("❌ ไม่สามารถเปลี่ยนโหมดได้ (MQTT ไม่เชื่อมต่อ)");
+                    }
+                }
             }
+            
+            // Clear debouncing flag after 3 seconds (allows ESP32 enough time to sync the new status)
+            setTimeout(() => {
+                isModeUpdating = false;
+            }, 3000);
         });
-        updateModeUI(modeToggle.checked);
     }
 
     // --- เริ่มต้นระบบตามโหมด ---
@@ -955,9 +977,24 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
     if (saveCalibrationBtn) {
-        saveCalibrationBtn.addEventListener("click", () => {
-            alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
+        saveCalibrationBtn.addEventListener("click", async () => {
+            const val = document.getElementById("feedAmountInput")?.value;
+            if (val && val > 0) {
+                try {
+                    await fetch("/api/settings/feed_amount", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ feed_amount: val })
+                    });
+                    alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
+                } catch (err) {
+                    alert("❌ บันทึกไม่สำเร็จ");
+                }
+            } else {
+                alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย"); // Fallback
+            }
         });
     }
 
@@ -965,17 +1002,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const feedAmountInput = document.getElementById("feedAmountInput");
     const indexFeedAmount = document.getElementById("feedAmount");
 
-    function saveFeedAmount(val) {
+    let feedAmountDebounceTimer = null;
+    
+    async function saveFeedAmount(val) {
         if (!val || val <= 0) return;
-        localStorage.setItem("sharedFeedAmount", val);
+        
+        // Sync the two UI inputs immediately
         if (indexFeedAmount && indexFeedAmount.value !== val) indexFeedAmount.value = val;
         if (feedAmountInput && feedAmountInput.value !== val) feedAmountInput.value = val;
-    }
-
-    const savedAmount = localStorage.getItem("sharedFeedAmount");
-    if (savedAmount) {
-        if (indexFeedAmount) indexFeedAmount.value = savedAmount;
-        if (feedAmountInput) feedAmountInput.value = savedAmount;
+        
+        // Clear previous timer and setup new debounce to avoid spamming the database
+        if (feedAmountDebounceTimer) clearTimeout(feedAmountDebounceTimer);
+        feedAmountDebounceTimer = setTimeout(async () => {
+            try {
+                await fetch("/api/settings/feed_amount", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ feed_amount: val })
+                });
+            } catch (err) {
+                console.error("Failed to save feed amount", err);
+            }
+        }, 1000);
     }
 
     if (indexFeedAmount) {
@@ -984,6 +1032,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (feedAmountInput) {
         feedAmountInput.addEventListener("input", (e) => saveFeedAmount(e.target.value));
     }
+    
+    // Load feed_amount from status on boot
+    fetch("/api/status").then(res => res.json()).then(data => {
+        if (data && data.feedAmount) {
+            const val = data.feedAmount.toString();
+            if (indexFeedAmount) indexFeedAmount.value = val;
+            if (feedAmountInput) feedAmountInput.value = val;
+        }
+    }).catch(err => console.log("Failed to fetch initial feed_amount"));
 });
 
 // --- Custom Toast Alert System ---

@@ -206,6 +206,24 @@ router.post("/stop", async (req, res) => {
 });
 
 // =======================================
+// POST SETTINGS
+// =======================================
+
+router.post("/settings/feed_amount", async (req, res) => {
+    try {
+        const { feed_amount } = req.body;
+        if (!feed_amount || isNaN(feed_amount) || feed_amount <= 0) {
+            return res.status(400).json({ success: false, message: "Invalid feed_amount" });
+        }
+        await database.updateDevice({ feedAmount: Number(feed_amount) });
+        res.json({ success: true, message: "Feed amount saved." });
+    } catch (err) {
+        console.error("API Error (feed_amount):", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
+});
+
+// =======================================
 // POST SCHEDULE
 // =======================================
 
