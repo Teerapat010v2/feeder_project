@@ -16,6 +16,7 @@ const MQTT_OPTIONS = {
 
 let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
 let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
+let TOPIC_SCHEDULE = `fishfeeder/${DEVICE_ID}/schedule`;
 
 let mqttClient = null;
 
@@ -256,6 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
         mqttClient.on('connect', () => {
             console.log("✅ เชื่อมต่อ HiveMQ สำเร็จ");
             mqttClient.subscribe(TOPIC_STATUS);
+            mqttClient.subscribe(TOPIC_SCHEDULE);
             if (connStatus) {
                 connStatus.className = "status-badge online";
                 connStatus.innerText = "● Online";
@@ -269,6 +271,22 @@ document.addEventListener("DOMContentLoaded", () => {
                     updateDashboardUI(data, true);
                 } catch (e) {
                     console.error("❌ แปลงข้อมูล MQTT ล้มเหลว", e);
+                }
+            } else if (topic === TOPIC_SCHEDULE) {
+                try {
+                    const data = JSON.parse(message.toString());
+                    // รองรับข้อมูลที่ตอบกลับมาเป็น { schedules: [...] } หรือ [...] โดยตรง
+                    if (data && data.schedules && Array.isArray(data.schedules)) {
+                        schedules = data.schedules;
+                    } else if (Array.isArray(data)) {
+                        schedules = data;
+                    } else {
+                        schedules = [];
+                    }
+                    const scheduleEvent = new CustomEvent('scheduleUpdatedUI');
+                    window.dispatchEvent(scheduleEvent);
+                } catch (e) {
+                    console.error("❌ แปลงข้อมูล Schedule MQTT ล้มเหลว", e);
                 }
             }
         });
@@ -807,6 +825,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // โหลดข้อมูลเริ่มต้น
     async function loadSchedules() {
+        if (!window.isLocalMode) return; // Online mode ใช้ MQTT รับค่าแทน ไม่ต้อง Fetch
         try {
             const response = await fetch("/api/schedule");
             if (response.ok) {
@@ -822,7 +841,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 renderSchedules();
             }
         } catch (err) {
-            console.warn("ไม่สามารถโหลดตารางเวลาได้ (อาจต้องรอ Backend)");
+            console.warn("ไม่สามารถโหลดตารางเวลาได้");
             renderSchedules();
         }
     }
@@ -850,25 +869,35 @@ document.addEventListener("DOMContentLoaded", () => {
             saveScheduleBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                const response = await fetch("/api/schedule", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "x-device-id": encodeURIComponent(DEVICE_ID), "x-device-code": "1234" },
-                    body: JSON.stringify({ schedules })
-                });
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/schedule", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ schedules })
+                    });
 
-                if (response.ok) {
-                    alert("✅ บันทึกตารางเวลาเรียบร้อยแล้ว");
+                    if (response.ok) {
+                        alert("✅ บันทึกตารางเวลาเรียบร้อยแล้ว");
+                    } else {
+                        alert("❌ บันทึกไม่สำเร็จ");
+                    }
                 } else {
-                    alert("❌ บันทึกไม่สำเร็จ");
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_SCHEDULE, JSON.stringify(schedules), { retain: true });
+                        alert("✅ บันทึกตารางเวลาผ่านระบบออนไลน์เรียบร้อยแล้ว");
+                    } else {
+                        alert("❌ ไม่สามารถติดต่อเซิร์ฟเวอร์ MQTT ได้");
+                    }
                 }
             } catch (err) {
-                alert(`❌ ติดต่อเซิร์ฟเวอร์ไม่ได้: ${err.message}`);
+                alert(`❌ เกิดข้อผิดพลาด: ${err.message}`);
             } finally {
                 saveScheduleBtn.disabled = false;
                 saveScheduleBtn.textContent = "บันทึกตารางเวลา";
             }
-        });
-    }
+    window.addEventListener('scheduleUpdatedUI', () => {
+        renderSchedules();
+    });
 
     if (window.isLocalMode) {
         // ฟัง event จากหน้า index เมื่อ schedule_count เปลี่ยน
@@ -877,9 +906,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         // poll schedule ทุก 5 วินาที ในโหมด Local เพื่อรับการเปลี่ยนแปลงจาก Online
         setInterval(loadSchedules, 5000);
+        loadSchedules();
     }
-
-    loadSchedules();
 });
 
 // =====================================

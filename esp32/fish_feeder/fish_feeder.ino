@@ -831,9 +831,9 @@ void handlePostSchedule() {
     updateLocalSchedulesFromJson(json);
     
     if (mqttClient.connected()) {
-      String syncTopic = "fishfeeder/" + deviceId + "/schedule_update";
-      mqttClient.publish(syncTopic.c_str(), json.c_str());
-      Serial.println("🔄 ส่งอัปเดตตารางเวลาไปยังเซิร์ฟเวอร์ (ออนไลน์) แล้ว");
+      String syncTopic = "fishfeeder/" + deviceId + "/schedule";
+      mqttClient.publish(syncTopic.c_str(), json.c_str(), true); // retain=true
+      Serial.println("🔄 ส่งอัปเดตตารางเวลาไปยังระบบออนไลน์ (MQTT) แล้ว");
     }
     
     server.send(200, "application/json", "{\"success\":true}");
