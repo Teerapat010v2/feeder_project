@@ -123,23 +123,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const scaleEl = document.getElementById("statusSensor");
         
         if (modeEl) {
-            modeEl.textContent = mode === "AUTO" ? "Auto" : "Manual";
-            modeEl.className = mode === "AUTO" ? "status-value-text green" : "status-value-text warning";
-            
-            // Sync toggle switch visually with real device state, but ignore if user just toggled it
-            const modeToggle = document.getElementById("modeToggle");
-            if (modeToggle && !isModeUpdating) {
-                const currentToggleIsManual = modeToggle.checked;
-                if (mode === "AUTO" && currentToggleIsManual) {
-                    modeToggle.checked = false;
-                    localStorage.setItem("manualMode", "false");
-                    updateModeUI(false);
-                } else if (mode === "MANUAL" && !currentToggleIsManual) {
-                    modeToggle.checked = true;
-                    localStorage.setItem("manualMode", "true");
-                    updateModeUI(true);
-                }
-            }
+            // เราจะไม่ให้ MQTT บังคับเปลี่ยนข้อความหรือสวิตช์โหมดอีกต่อไป 
+            // ปล่อยให้ LocalStorage และ Toggle Switch เป็นตัวควบคุม UI เพียงอย่างเดียว
+            // แต่จะรับค่ามาตรวจสอบเฉยๆ ว่าตรงกันไหม (เผื่อใช้ debug)
         }
         if (motorEl) {
             motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
