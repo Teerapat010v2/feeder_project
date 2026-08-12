@@ -887,7 +887,10 @@ document.addEventListener("DOMContentLoaded", () => {
                         alert("❌ ปรับศูนย์ไม่สำเร็จ");
                     }
                 } else {
-                    if (mqttClient && mqttClient.connected) {
+                    if (mqttClient) {
+                        if (!mqttClient.connected) {
+                            alert("⏳ ระบบกำลังเชื่อมต่อเซิร์ฟเวอร์ คำสั่งจะถูกส่งเมื่อเชื่อมต่อสำเร็จ");
+                        }
                         mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "TARE" }));
                         await new Promise(r => setTimeout(r, 1000));
                         alert("✅ ส่งคำสั่งปรับศูนย์ (Tare) แล้ว");
@@ -896,7 +899,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 }
             } catch (err) {
-                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง หรือรอสักครู่)");
+                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
             } finally {
                 tareBtn.textContent = "Tare (ปรับศูนย์)";
                 tareBtn.disabled = false;
@@ -924,7 +927,10 @@ document.addEventListener("DOMContentLoaded", () => {
                         alert("❌ ปรับเทียบไม่สำเร็จ");
                     }
                 } else {
-                    if (mqttClient && mqttClient.connected) {
+                    if (mqttClient) {
+                        if (!mqttClient.connected) {
+                            alert("⏳ ระบบกำลังเชื่อมต่อเซิร์ฟเวอร์ คำสั่งจะถูกส่งเมื่อเชื่อมต่อสำเร็จ");
+                        }
                         mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "CALIBRATE", weight: parseFloat(weight) }));
                         await new Promise(r => setTimeout(r, 1000));
                         alert("✅ ส่งคำสั่งปรับเทียบ (Calibration) แล้ว");
@@ -933,7 +939,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 }
             } catch (err) {
-                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง หรือรอสักครู่)");
+                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
             } finally {
                 calibBtn.textContent = "Calibration (ปรับเทียบค่า)";
                 calibBtn.disabled = false;
