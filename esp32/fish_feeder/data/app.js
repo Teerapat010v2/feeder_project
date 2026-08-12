@@ -966,12 +966,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 
     async function loadHistory() {
-        if (!window.isLocalMode) {
-            renderHistory([]); // Clear the table and wait for MQTT
-            return; 
-        }
         try {
-            const response = await fetch("/api/history");
+            const response = await fetch("/api/history", {
+                headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+            });
             if (response.ok) {
                 const history = await response.json();
                 renderHistory(history);

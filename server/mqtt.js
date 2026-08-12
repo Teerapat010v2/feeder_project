@@ -309,12 +309,19 @@ async function handleAlert(data) {
 async function handleHistory(data) {
 
     try {
+        let latestData = data;
+        
+        // If the new firmware sends an array of history, extract the latest one (index 0)
+        if (Array.isArray(data)) {
+            if (data.length === 0) return;
+            latestData = data[0];
+        }
 
         const history = {
 
-            amount: data.amount || 0,
+            amount: latestData.amount || 0,
 
-            mode: data.mode || "manual"
+            mode: latestData.mode || "manual"
 
         };
 
