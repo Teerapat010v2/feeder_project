@@ -14,12 +14,10 @@ if (!process.env.MQTT_HOST || !process.env.MQTT_PORT) {
     console.warn("[MQTT] MQTT_HOST / MQTT_PORT ไม่ได้ถูกตั้งค่าใน .env — MQTT จะเชื่อมต่อไม่ได้");
 }
 
-const client = mqtt.connect({
-    protocol: "mqtts",
-    host: process.env.MQTT_HOST,
-    port: Number(process.env.MQTT_PORT),
-    username: process.env.MQTT_USER,
-    password: process.env.MQTT_PASS,
+const client = mqtt.connect("mqtts://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8883", {
+    username: "teerapat",
+    password: "Teerapat99",
+    clientId: "vercel-serverless-" + Math.random().toString(16).substr(2, 8),
     reconnectPeriod: 5000,
     connectTimeout: 10000,
     // ค่าเดิมเป็น false เสมอ (ปิดการตรวจ cert) ซึ่งเสี่ยงต่อ MITM
