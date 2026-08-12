@@ -624,7 +624,6 @@ input:checked + .slider:before {
     border: 1px solid var(--border-color);
     border-radius: 12px;
     box-shadow: var(--shadow-sm);
-    height: 100% !important;
     display: flex;
     flex-direction: column;
     justify-content: center;
