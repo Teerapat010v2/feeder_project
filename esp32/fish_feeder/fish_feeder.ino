@@ -660,7 +660,9 @@ void stopFeeding() {
     String historyPayload;
     serializeJson(histDoc, historyPayload);
     String historyTopic = "fishfeeder/" + deviceId + "/history";
-    mqttClient.publish(historyTopic.c_str(), historyPayload.c_str(), true); // Retained
+    bool pubSuccess = mqttClient.publish(historyTopic.c_str(), historyPayload.c_str(), true); // Retained
+    Serial.print("📢 ส่งข้อมูลประวัติขึ้น MQTT: ");
+    Serial.println(pubSuccess ? "✅ สำเร็จ!" : "❌ ล้มเหลว!");
   }
 }
 
