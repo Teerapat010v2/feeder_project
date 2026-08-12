@@ -414,6 +414,83 @@ input:checked + .slider:before {
     transition: width 0.4s ease;
 }
 
+/* Premium Tank Card Redesign */
+.premium-tank-card {
+    background: linear-gradient(145deg, #1f2937, #111827);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.premium-weight-display {
+    display: flex;
+    justify-content: center;
+    align-items: baseline;
+    padding: 20px 0 10px 0;
+    text-shadow: 0 2px 10px rgba(34, 197, 94, 0.4);
+}
+
+.premium-tank-weight {
+    font-size: 56px;
+    font-weight: 900;
+    color: #4ade80;
+    letter-spacing: -1px;
+}
+
+.premium-unit {
+    font-size: 24px;
+    font-weight: 600;
+    color: #a7f3d0;
+    margin-left: 8px;
+}
+
+.premium-progress-bg {
+    width: 100%;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    margin: 15px 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.premium-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #22c55e, #4ade80);
+    border-radius: 20px;
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+}
+
+.progress-glow {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: loading-glow 2s infinite;
+}
+
+@keyframes loading-glow {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.premium-days-remaining {
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+    margin-top: 15px;
+}
+
+.premium-days-remaining strong {
+    color: #f3f4f6;
+    font-size: 16px;
+}
+
 .status-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -753,9 +830,10 @@ input:checked + .slider:before {
 
 /* สถานะ Online (สีเขียว) */
 .status-badge.online {
-    background-color: #dcfce7;
-    color: #15803d;
-    border: 1px solid #86efac;
+    background-color: #22c55e;
+    color: #ffffff;
+    border: none;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
 }
 
 /* สถานะ Local Mode (สีฟ้า) */

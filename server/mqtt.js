@@ -181,38 +181,25 @@ async function handleStatus(data) {
 
     try {
 
+        const isOnline = data.online !== undefined ? data.online : true;
+
         await database.updateDevice({
-
-            online: true,
-
+            online: isOnline,
             feeding: data.feeding || false,
-
             lastSeen: new Date(),
-
             firmware: data.firmware || "",
-
             ip: data.ip || "",
-
             wifi: data.wifi || 0
-
         });
 
         if (io) {
-
             io.emit("status", {
-
-                online: true,
-
+                online: isOnline,
                 feeding: data.feeding || false,
-
                 firmware: data.firmware,
-
                 ip: data.ip,
-
                 wifi: data.wifi
-
             });
-
         }
 
     } catch (err) {

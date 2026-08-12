@@ -38,12 +38,26 @@ document.addEventListener("DOMContentLoaded", () => {
     let localFetchTimer = null;
 
     // --- ฟังก์ชันอัปเดต UI หน้าจอ ---
-    function updateDashboardUI(weight, isOnline) {
-        weight = Math.max(0, parseFloat(weight || 0));
+    function updateDashboardUI(data, isOnline) {
+        let weight = 0;
+        let mode = "MANUAL";
+        let motor = "READY";
+        let scaleStat = "NORMAL";
+        let onlineStatus = isOnline;
+        
+        if (typeof data === 'number') {
+            weight = Math.max(0, parseFloat(data || 0));
+        } else if (data) {
+            weight = Math.max(0, parseFloat(data.current_weight || 0));
+            if (data.mode) mode = data.mode.toUpperCase();
+            if (data.motor_status) motor = data.motor_status.toUpperCase();
+            if (data.scale_status) scaleStat = data.scale_status.toUpperCase();
+            if (data.online !== undefined) onlineStatus = data.online;
+        }
 
         if (connStatus) {
-            if (isOnline) {
-                connStatus.className = isLocalMode ? "status-badge local" : "status-badge green";
+            if (onlineStatus) {
+                connStatus.className = isLocalMode ? "status-badge local" : "status-badge online"; // will style .online in css
                 connStatus.innerText = isLocalMode ? "● Local" : "● Online";
             } else {
                 connStatus.className = "status-badge offline";
@@ -71,6 +85,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 foodStatusBadge.textContent = "🟢 ปกติ";
                 foodStatusBadge.className = "status-badge green";
             }
+        }
+        
+        // Update new status fields
+        const modeEl = document.getElementById("statusCurrentMode");
+        const motorEl = document.getElementById("statusMotor");
+        const scaleEl = document.getElementById("statusSensor");
+        
+        if (modeEl) {
+            modeEl.textContent = mode === "AUTO" ? "Auto" : "Manual";
+            modeEl.className = mode === "AUTO" ? "status-value-text green" : "status-value-text gray";
+        }
+        if (motorEl) {
+            motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
+            motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
+        }
+        if (scaleEl) {
+            scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : "ขัดข้อง";
+            scaleEl.className = scaleStat === "NORMAL" ? "status-value-text green" : "status-value-text red";
         }
     }
 
@@ -126,7 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (topic === TOPIC_STATUS) {
                 try {
                     const data = JSON.parse(message.toString());
-                    updateDashboardUI(data.current_weight, true);
+                    updateDashboardUI(data, true);
                 } catch (e) {
                     console.error("❌ แปลงข้อมูล MQTT ล้มเหลว", e);
                 }
@@ -150,7 +182,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
                 const data = await response.json();
                 
-                updateDashboardUI(data.current_weight, true);
+                updateDashboardUI(data, true);
             } catch (err) {
                 console.warn("⚡ กำลังเชื่อมต่อกับบอร์ด ESP32...");
                 updateDashboardUI(0, false);
@@ -865,3 +897,74 @@ document.addEventListener("DOMContentLoaded", () => {
         feedAmountInput.addEventListener("input", (e) => saveFeedAmount(e.target.value));
     }
 });
+
+// --- Custom Toast Alert System ---
+function showToast(message, type = "info") {
+    let toastContainer = document.getElementById("toast-container");
+    if (!toastContainer) {
+        toastContainer = document.createElement("div");
+        toastContainer.id = "toast-container";
+        toastContainer.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        `;
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toast = document.createElement("div");
+    
+    // Parse icon from message
+    let icon = "🔔";
+    if (message.includes("✅")) { icon = "✅"; message = message.replace("✅", "").trim(); type = "success"; }
+    else if (message.includes("❌")) { icon = "❌"; message = message.replace("❌", "").trim(); type = "error"; }
+    else if (message.includes("🛑")) { icon = "🛑"; message = message.replace("🛑", "").trim(); type = "warning"; }
+    
+    let bg = "rgba(15, 23, 42, 0.9)";
+    if (type === "success") bg = "rgba(22, 163, 74, 0.95)";
+    else if (type === "error") bg = "rgba(239, 68, 68, 0.95)";
+    else if (type === "warning") bg = "rgba(234, 179, 8, 0.95)";
+
+    toast.style.cssText = `
+        background: ${bg};
+        color: white;
+        padding: 14px 20px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        font-weight: 500;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        backdrop-filter: blur(10px);
+        transform: translateX(120%);
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
+        opacity: 0;
+        min-width: 250px;
+    `;
+    
+    toast.innerHTML = `<span style="font-size: 18px;">${icon}</span> <span>${message}</span>`;
+    toastContainer.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => {
+        toast.style.transform = "translateX(0)";
+        toast.style.opacity = "1";
+    }, 10);
+    
+    // Auto remove
+    setTimeout(() => {
+        toast.style.transform = "translateX(120%)";
+        toast.style.opacity = "0";
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
+}
+
+// Override default window.alert
+window.alert = function(message) {
+    showToast(message);
+};

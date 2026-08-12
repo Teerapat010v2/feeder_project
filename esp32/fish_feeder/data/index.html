@@ -89,21 +89,26 @@
 
     </div>
 </div>
-        <!-- 🪣 น้ำหนักอาหารจริงแบบ Real-time -->
-        <div class="card">
-            <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>อาหารคงเหลือในถัง</span>
+        <!-- 🪣 น้ำหนักอาหารจริงแบบ Real-time (Premium Design) -->
+        <div class="card premium-tank-card">
+            <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 12px; margin-bottom: 16px;">
+                <span style="color: white; font-size: 1.1rem; font-weight: 600;">อาหารคงเหลือในถัง</span>
                 <span id="foodStatusBadge" class="status-badge gray">รอเชื่อมต่อ...</span>
             </div>
             <div class="tank-container">
-                <div class="tank-info" style="justify-content: center; padding: 12px 0;">
-                    <span id="tankWeightText" class="tank-weight" style="font-size: 40px; font-weight: 800; color: var(--primary-color);">0 g</span>
+                <div class="premium-weight-display">
+                    <span id="tankWeightText" class="premium-tank-weight">0.0</span>
+                    <span class="premium-unit">g</span>
                 </div>
-                <div class="progress-bar-bg">
-                    <div id="tankProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+                
+                <div class="premium-progress-bg">
+                    <div id="tankProgressBar" class="premium-progress-fill" style="width: 0%;">
+                        <div class="progress-glow"></div>
+                    </div>
                 </div>
-                <div class="days-remaining-box" style="margin-top: 12px;">
-                    ใช้งานต่อได้อีกประมาณ: <strong id="daysRemainingText">-- วัน</strong>
+                
+                <div class="premium-days-remaining">
+                    <i class="fas fa-clock"></i> ใช้งานต่อได้อีกประมาณ: <strong id="daysRemainingText">-- วัน</strong>
                 </div>
             </div>
         </div>

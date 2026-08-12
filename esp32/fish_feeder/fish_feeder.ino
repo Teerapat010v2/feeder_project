@@ -46,6 +46,8 @@ unsigned long feedStartTime = 0;
 unsigned long feedDuration = 0; 
 unsigned long lastMqttPublish = 0;
 String deviceId = "feeder_";
+float weightBeforeFeed = 0.0;
+String currentFeedMode = "manual";
 
 // --- NTP & Scheduling ---
 const char* ntpServer = "pool.ntp.org";
@@ -109,7 +111,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (action) {
     if (strcmp(action, "FEED") == 0) {
       int amount = doc["amount"] | 10;
-      triggerFeeding(amount);
+      String mode = doc["mode"] | "manual";
+      triggerFeeding(amount, mode);
     } else if (strcmp(action, "EMERGENCY_STOP") == 0) {
       stopFeeding();
     }
@@ -121,12 +124,18 @@ void connectMQTT() {
   
   while (!mqttClient.connected()) {
     Serial.print("📡 กำลังเชื่อมต่อ MQTT (HiveMQ)... ");
-    if (mqttClient.connect(deviceId.c_str(), MQTT_USER, MQTT_PASS)) {
-      Serial.println("✅ เชื่อมต่อ MQTT สำเร็จ");
+    String statusTopic = "fishfeeder/" + deviceId + "/status";
+    String lwtMessage = "{\"online\":false, \"status\":\"OFFLINE\", \"deviceId\":\"" + deviceId + "\"}";
+    
+    if (mqttClient.connect(deviceId.c_str(), MQTT_USER, MQTT_PASS, statusTopic.c_str(), 1, true, lwtMessage.c_str())) {
+      Serial.println("✅ เชื่อมต่อ MQTT สำเร็จ (พร้อม LWT)");
       String cmdTopic = "fishfeeder/" + deviceId + "/cmd/command";
       String scheduleTopic = "fishfeeder/" + deviceId + "/schedule";
       mqttClient.subscribe(cmdTopic.c_str());
       mqttClient.subscribe(scheduleTopic.c_str());
+      
+      // ส่งสถานะ Online ทันทีเมื่อเชื่อมต่อสำเร็จ
+      publishMQTTStatus();
     } else {
       Serial.print("❌ ล้มเหลว State=");
       Serial.print(mqttClient.state());
@@ -339,11 +348,23 @@ void publishMQTTStatus() {
     float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
     if (weight < 0) weight = 0.0;
     
-    StaticJsonDocument<200> doc;
+    // Check mode
+    String currentMode = "MANUAL";
+    for (int i = 0; i < scheduleCount; i++) {
+      if (localSchedules[i].enable) {
+        currentMode = "AUTO";
+        break;
+      }
+    }
+    
+    StaticJsonDocument<256> doc;
     doc["online"] = true;
     doc["weight"] = weight;
     doc["current_weight"] = weight;
     doc["status"] = isFeeding ? "FEEDING" : "IDLE";
+    doc["motor_status"] = isFeeding ? "FEEDING" : "READY";
+    doc["scale_status"] = scale.is_ready() ? "NORMAL" : "ERROR";
+    doc["mode"] = currentMode;
     doc["deviceId"] = deviceId;
     
     String payload;
@@ -376,7 +397,7 @@ void checkSchedules() {
     for (int i = 0; i < scheduleCount; i++) {
       if (localSchedules[i].enable && localSchedules[i].hour == currentHour && localSchedules[i].minute == currentMin) {
         Serial.printf("⏰ ได้เวลาให้อาหาร (Schedule): %02d:%02d | ปริมาณ %d กรัม\n", currentHour, currentMin, localSchedules[i].amount);
-        triggerFeeding(localSchedules[i].amount);
+        triggerFeeding(localSchedules[i].amount, "auto");
         break; // Trigger only one schedule per minute
       }
     }
@@ -423,7 +444,7 @@ void loop() {
 // =================================================================
 // 📌 10. ฟังก์ชันสั่งเปิดรีเลย์มอเตอร์
 // =================================================================
-void triggerFeeding(int amountGrams) {
+void triggerFeeding(int amountGrams, String mode = "manual") {
   if (isFeeding) return; 
 
   unsigned long duration = (unsigned long)((amountGrams / 10.0) * 2000.0);
@@ -432,6 +453,9 @@ void triggerFeeding(int amountGrams) {
   feedDuration = duration;
   feedStartTime = millis();
   isFeeding = true;
+  currentFeedMode = mode;
+  weightBeforeFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
+  if (weightBeforeFeed < 0) weightBeforeFeed = 0.0;
 
   digitalWrite(RELAY_PIN, RELAY_ON);
   
@@ -454,8 +478,33 @@ void stopFeeding() {
   digitalWrite(RELAY_PIN, RELAY_OFF); 
   Serial.println("🛑 หยุดการทำงานมอเตอร์แล้ว");
   
+  // รอให้ตาชั่งนิ่งสักพัก
+  delay(1000); 
+  
+  float weightAfterFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
+  if (weightAfterFeed < 0) weightAfterFeed = 0.0;
+  
+  float dispensed = weightBeforeFeed - weightAfterFeed;
+  
+  Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม\n", weightBeforeFeed, weightAfterFeed, dispensed);
+  
   if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
     publishMQTTStatus();
+    
+    // ส่งประวัติเฉพาะเมื่อมีอาหารออกจริงๆ (มากกว่า 1 กรัม)
+    if (dispensed >= 1.0) {
+      StaticJsonDocument<200> historyDoc;
+      historyDoc["amount"] = dispensed;
+      historyDoc["mode"] = currentFeedMode;
+      
+      String historyPayload;
+      serializeJson(historyDoc, historyPayload);
+      String historyTopic = "fishfeeder/" + deviceId + "/history";
+      mqttClient.publish(historyTopic.c_str(), historyPayload.c_str());
+      Serial.println("📝 บันทึกประวัติการให้อาหารสำเร็จ");
+    } else {
+      Serial.println("⚠️ อาหารไม่ออกตามจริง! ข้ามการบันทึกประวัติ");
+    }
   }
 }
 
@@ -468,12 +517,24 @@ void handleApiStatus() {
   float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
   if (weight < 0) weight = 0.0; 
 
-  StaticJsonDocument<200> doc;
+  // Check mode
+  String currentMode = "MANUAL";
+  for (int i = 0; i < scheduleCount; i++) {
+    if (localSchedules[i].enable) {
+      currentMode = "AUTO";
+      break;
+    }
+  }
+
+  StaticJsonDocument<256> doc;
   doc["online"] = true;
-  doc["current_weight"] = weight;   // 🟢 ตรงกับ app.js บรรทัดที่ 17[cite: 2]
+  doc["current_weight"] = weight;
   doc["weight"]         = weight;   
   doc["weight_grams"]   = weight; 
   doc["status"]         = isFeeding ? "FEEDING" : "IDLE";
+  doc["motor_status"]   = isFeeding ? "FEEDING" : "READY";
+  doc["scale_status"]   = scale.is_ready() ? "NORMAL" : "ERROR";
+  doc["mode"]           = currentMode;
 
   String response;
   serializeJson(doc, response);
@@ -494,7 +555,7 @@ void handleLocalFeed() {
   }
   if (amount <= 0) amount = 10;
   
-  triggerFeeding(amount);
+  triggerFeeding(amount, "manual");
   
   String response = "{\"success\":true,\"message\":\"กำลังปล่อยอาหาร " + String(amount) + " กรัม\"}";
   server.send(200, "application/json", response);
