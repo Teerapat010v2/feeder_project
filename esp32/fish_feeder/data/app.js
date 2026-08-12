@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
     // ถ้ารันบน IP (192.168.x.x) ให้ใช้ Local Mode ถ้าเป็นโดเมน (vercel) ให้ใช้ Online Mode
-    const isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
+    window.isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
     
     // --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
     const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
@@ -99,8 +99,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (connStatus) {
             if (onlineStatus) {
-                connStatus.className = isLocalMode ? "status-badge local" : "status-badge online"; // will style .online in css
-                connStatus.innerText = isLocalMode ? "● Local" : "● Online";
+                connStatus.className = window.isLocalMode ? "status-badge local" : "status-badge online"; // will style .online in css
+                connStatus.innerText = window.isLocalMode ? "● Local" : "● Online";
             } else {
                 connStatus.className = "status-badge offline";
                 connStatus.innerText = "● Offline";
@@ -179,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
             setTimeout(() => isModeUpdating = false, 3000); // 3-second cooldown
 
             // Sync with ESP32 in real-time
-            if (isLocalMode) {
+            if (window.isLocalMode) {
                 fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`).catch(console.error);
             } else if (mqttClient && mqttClient.connected) {
                 mqttClient.publish(`fishfeeder/${DEVICE_ID}/cmd/command`, JSON.stringify({
@@ -192,7 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- เริ่มต้นระบบตามโหมด ---
-    if (!isLocalMode && typeof mqtt !== 'undefined') {
+    if (!window.isLocalMode && typeof mqtt !== 'undefined') {
         // [ONLINE MODE] ใช้ MQTT
         console.log("🌐 กำลังเชื่อมต่อ Online Mode (HiveMQ)...");
         mqttClient = mqtt.connect(MQTT_BROKER, MQTT_OPTIONS);
@@ -258,7 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
             feedBtn.textContent = "⏳ กำลังปล่อยอาหาร...";
 
             try {
-                if (!isLocalMode && mqttClient && mqttClient.connected) {
+                if (!window.isLocalMode && mqttClient && mqttClient.connected) {
                     // ส่งคำสั่งผ่าน MQTT (Online)
                     const cmdPayload = JSON.stringify({ action: "FEED", amount: amount });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
@@ -294,7 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (stopBtn) {
         stopBtn.addEventListener("click", async () => {
             try {
-                if (!isLocalMode && mqttClient && mqttClient.connected) {
+                if (!window.isLocalMode && mqttClient && mqttClient.connected) {
                     // ส่งคำสั่งผ่าน MQTT (Online)
                     const cmdPayload = JSON.stringify({ action: "EMERGENCY_STOP" });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
@@ -381,7 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateUiLeds() {
         if (ledPower) ledPower.classList.add("active"); // Power always on if dashboard loaded
         
-        if (isLocalMode) {
+        if (window.isLocalMode) {
             if (ledLocal) ledLocal.classList.add("active");
             if (ledOnline) ledOnline.classList.remove("active");
         } else {
@@ -878,7 +878,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 tareBtn.textContent = "⏳ กำลังปรับศูนย์...";
                 tareBtn.disabled = true;
                 
-                if (isLocalMode) {
+                if (window.isLocalMode) {
                     const response = await fetch("/local-tare");
                     const result = await response.json();
                     if (result.success) {
@@ -922,7 +922,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 calibBtn.textContent = "⏳ กำลังปรับเทียบ...";
                 calibBtn.disabled = true;
                 
-                if (isLocalMode) {
+                if (window.isLocalMode) {
                     const response = await fetch(`/local-calib?weight=${weight}`);
                     const result = await response.json();
                     if (result.success) {
