@@ -1,0 +1,57 @@
+process.env.POSTGRES_URL = process.env.POSTGRES_URL || "postgresql://neondb_owner:npg_5MlVr8ydotek@ep-fancy-fog-az5nx75w-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require";
+const { sql } = require('@vercel/postgres');
+
+module.exports = async function handler(req, res) {
+    const rawDeviceId = req.headers["x-device-id"] || process.env.DEVICE_ID || "Prototype_01";
+    const DEVICE_ID = decodeURIComponent(rawDeviceId);
+
+    if (req.method === 'GET') {
+        try {
+            const limit = req.query.limit || 100;
+            const { rows } = await sql`
+                SELECT id, amount, mode, timestamp 
+                FROM feed_history 
+                WHERE device_id = ${DEVICE_ID} 
+                ORDER BY timestamp DESC 
+                LIMIT ${limit}
+            `;
+            const history = rows.map(row => ({
+                id: String(row.id),
+                amount: Number(row.amount),
+                mode: row.mode,
+                timestamp: row.timestamp
+            }));
+            return res.status(200).json(history);
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Database error' });
+        }
+    } 
+    
+    if (req.method === 'POST') {
+        try {
+            const { amount, mode } = req.body;
+            await sql`
+                INSERT INTO feed_history (device_id, amount, mode, timestamp)
+                VALUES (${DEVICE_ID}, ${amount || 10}, ${mode || 'manual'}, CURRENT_TIMESTAMP)
+            `;
+            return res.status(200).json({ success: true });
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Database error' });
+        }
+    }
+
+    if (req.method === 'DELETE') {
+        try {
+            await sql`DELETE FROM feed_history WHERE device_id = ${DEVICE_ID}`;
+            return res.status(200).json({ success: true });
+        } catch (error) {
+            console.error(error);
+            return res.status(500).json({ error: 'Database error' });
+        }
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+    res.status(405).end(`Method ${req.method} Not Allowed`);
+}

@@ -1,0 +1,20 @@
+{
+  "name": "fish-feeder-iot",
+  "version": "2.0.0",
+  "description": "Fish Feeder IoT Dashboard",
+  "main": "index.html",
+  "scripts": {
+    "start": "echo 'No start script for Vercel Static'"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.10.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1",
+    "mqtt": "^5.13.3",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
