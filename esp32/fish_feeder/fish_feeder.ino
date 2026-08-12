@@ -65,7 +65,7 @@ int scheduleCount = 0;
 int lastCheckedMinute = -1;
 
 // --- ประกาศชื่อฟังก์ชันล่วงหน้า (Function Prototypes) ---
-void triggerFeeding(int amountGrams);
+void triggerFeeding(int amountGrams, String mode = "manual");
 void stopFeeding();
 void handleApiStatus();
 void handleLocalFeed();
@@ -444,7 +444,7 @@ void loop() {
 // =================================================================
 // 📌 10. ฟังก์ชันสั่งเปิดรีเลย์มอเตอร์
 // =================================================================
-void triggerFeeding(int amountGrams, String mode = "manual") {
+void triggerFeeding(int amountGrams, String mode) {
   if (isFeeding) return; 
 
   unsigned long duration = (unsigned long)((amountGrams / 10.0) * 2000.0);
