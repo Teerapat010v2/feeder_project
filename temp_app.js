@@ -3,22 +3,6 @@
 // =====================================
 const DEVICE_ID = "Prototype_01";
 
-// --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
-window.isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
-
-// --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
-const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
-const MQTT_OPTIONS = {
-    username: "teerapat",
-    password: "Teerapat99",
-    clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
-};
-
-let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
-let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
-
-let mqttClient = null;
-
 document.addEventListener("DOMContentLoaded", () => {
     // --- 1. ประกาศตัวแปร DOM Elements จาก index.html ---
     const tankWeightText = document.getElementById("tankWeightText");
@@ -75,7 +59,23 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
     }).catch(err => console.log("Could not fetch schedules for daily usage"));
+
+    // --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
+    // ถ้ารันบน IP (192.168.x.x) ให้ใช้ Local Mode ถ้าเป็นโดเมน (vercel) ให้ใช้ Online Mode
+    const isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
     
+    // --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
+    const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
+    const MQTT_OPTIONS = {
+        username: "teerapat",
+        password: "Teerapat99",
+        clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
+    };
+    
+    let TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
+    let TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
+    
+    let mqttClient = null;
     let localFetchTimer = null;
     let isModeUpdating = false;
 
@@ -99,8 +99,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (connStatus) {
             if (onlineStatus) {
-                connStatus.className = window.isLocalMode ? "status-badge local" : "status-badge online"; // will style .online in css
-                connStatus.innerText = window.isLocalMode ? "● Local" : "● Online";
+                connStatus.className = isLocalMode ? "status-badge local" : "status-badge online"; // will style .online in css
+                connStatus.innerText = isLocalMode ? "● Local" : "● Online";
             } else {
                 connStatus.className = "status-badge offline";
                 connStatus.innerText = "● Offline";
@@ -122,56 +122,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const motorEl = document.getElementById("statusMotor");
         const scaleEl = document.getElementById("statusSensor");
         
-        // Handle Mode Toggle (Ignore if isModeUpdating is true)
-        if (!isModeUpdating && data.mode) {
-            const currentIsManual = data.mode.toUpperCase() === "MANUAL";
-            if (modeToggle && modeToggle.checked !== currentIsManual) {
-                modeToggle.checked = currentIsManual;
-                updateModeUI(currentIsManual, onlineStatus);
-            }
-        }
-
         if (modeEl) {
-            if (!onlineStatus) {
-                modeEl.textContent = "เครื่องปิดอยู่";
-                modeEl.className = "status-value-text gray";
-            } else {
-                const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
-                modeEl.textContent = isManual ? "Manual" : "Auto";
-                modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
-            }
+            // เราจะไม่ให้ MQTT บังคับเปลี่ยนข้อความหรือสวิตช์โหมดอีกต่อไป 
+            // ปล่อยให้ LocalStorage และ Toggle Switch เป็นตัวควบคุม UI เพียงอย่างเดียว
+            // แต่จะรับค่ามาตรวจสอบเฉยๆ ว่าตรงกันไหม (เผื่อใช้ debug)
         }
         if (motorEl) {
-            if (!onlineStatus) {
-                motorEl.textContent = "เครื่องปิดอยู่";
-                motorEl.className = "status-value-text gray";
-            } else {
-                motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
-                motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
-            }
+            motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
+            motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
         }
         if (scaleEl) {
-            if (!onlineStatus) {
-                scaleEl.textContent = "เครื่องปิดอยู่";
-                scaleEl.className = "status-value-text gray";
-            } else {
-                scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : "ขัดข้อง";
-                scaleEl.className = scaleStat === "NORMAL" ? "status-value-text green" : "status-value-text red";
-            }
-        }
-        
-        // Disable controls if offline
-        if (modeToggle) modeToggle.disabled = !onlineStatus;
-        if (feedBtn) feedBtn.disabled = !onlineStatus || (modeToggle && !modeToggle.checked);
-        if (feedAmount) feedAmount.disabled = !onlineStatus || (modeToggle && !modeToggle.checked);
-        if (stopBtn) stopBtn.disabled = !onlineStatus;
-        
-        if (!onlineStatus) {
-            labelAuto?.classList.remove("active");
-            labelManual?.classList.remove("active");
-        } else {
-            const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
-            updateModeUI(isManual, onlineStatus);
+            scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : "ขัดข้อง";
+            scaleEl.className = scaleStat === "NORMAL" ? "status-value-text green" : "status-value-text red";
         }
     }
 
@@ -179,9 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const labelAuto = document.getElementById("label-auto");
     const labelManual = document.getElementById("label-manual");
 
-    function updateModeUI(isManual, onlineStatus = true) {
-        if (!onlineStatus) return; // Prevent overwriting if offline
-        
+    function updateModeUI(isManual) {
         if (isManual) {
             labelManual?.classList.add("active");
             labelAuto?.classList.remove("active");
@@ -196,56 +156,43 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (modeToggle) {
-        modeToggle.addEventListener("change", async (e) => {
+        const initialManual = localStorage.getItem("manualMode") === "true";
+        modeToggle.checked = initialManual;
+        
+        const modeEl = document.getElementById("statusCurrentMode");
+        if (modeEl) {
+            modeEl.textContent = initialManual ? "Manual" : "Auto";
+            modeEl.className = initialManual ? "status-value-text warning" : "status-value-text green";
+        }
+        
+        modeToggle.addEventListener("change", (e) => {
             const isManual = e.target.checked;
-            
-            // Set debouncing flag
-            isModeUpdating = true;
+            localStorage.setItem("manualMode", isManual);
             updateModeUI(isManual);
             
-            const modeEl = document.getElementById("statusCurrentMode");
             if (modeEl) {
                 modeEl.textContent = isManual ? "Manual" : "Auto";
                 modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
             }
             
-            if (window.isLocalMode) {
-                try {
-                    const response = await fetch(`/local-mode?manual=${isManual ? '1' : '0'}`);
-                    const result = await response.json();
-                    if (result.success) {
-                        alert("✅ เปลี่ยนโหมด (Local) สำเร็จ");
-                    } else {
-                        modeToggle.checked = !isManual; // Revert
-                        updateModeUI(!isManual);
-                    }
-                } catch (err) {
-                    modeToggle.checked = !isManual; // Revert
-                    updateModeUI(!isManual);
-                    alert("❌ เปลี่ยนโหมดไม่สำเร็จ (Local)");
-                }
-            } else {
-                if (!window.isLocalMode && typeof mqtt !== 'undefined') {
-                    if (mqttClient && mqttClient.connected) {
-                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_MODE", mode: isManual ? "MANUAL" : "AUTO" }));
-                        alert(`✅ เปลี่ยนเป็นโหมด ${isManual ? 'MANUAL' : 'AUTO'} แล้ว`);
-                    } else {
-                        modeToggle.checked = !isManual;
-                        updateModeUI(!isManual);
-                        alert("❌ ไม่สามารถเปลี่ยนโหมดได้ (MQTT ไม่เชื่อมต่อ)");
-                    }
-                }
+            isModeUpdating = true;
+            setTimeout(() => isModeUpdating = false, 3000); // 3-second cooldown
+
+            // Sync with ESP32 in real-time
+            if (isLocalMode) {
+                fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`).catch(console.error);
+            } else if (mqttClient && mqttClient.connected) {
+                mqttClient.publish(`fishfeeder/${DEVICE_ID}/cmd/command`, JSON.stringify({
+                    action: "SET_MODE",
+                    mode: isManual ? "MANUAL" : "AUTO"
+                }));
             }
-            
-            // Clear debouncing flag after 3 seconds (allows ESP32 enough time to sync the new status)
-            setTimeout(() => {
-                isModeUpdating = false;
-            }, 3000);
         });
+        updateModeUI(modeToggle.checked);
     }
 
     // --- เริ่มต้นระบบตามโหมด ---
-    if (!window.isLocalMode && typeof mqtt !== 'undefined') {
+    if (!isLocalMode && typeof mqtt !== 'undefined') {
         // [ONLINE MODE] ใช้ MQTT
         console.log("🌐 กำลังเชื่อมต่อ Online Mode (HiveMQ)...");
         mqttClient = mqtt.connect(MQTT_BROKER, MQTT_OPTIONS);
@@ -311,7 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
             feedBtn.textContent = "⏳ กำลังปล่อยอาหาร...";
 
             try {
-                if (!window.isLocalMode && mqttClient && mqttClient.connected) {
+                if (!isLocalMode && mqttClient && mqttClient.connected) {
                     // ส่งคำสั่งผ่าน MQTT (Online)
                     const cmdPayload = JSON.stringify({ action: "FEED", amount: amount });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
@@ -347,7 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (stopBtn) {
         stopBtn.addEventListener("click", async () => {
             try {
-                if (!window.isLocalMode && mqttClient && mqttClient.connected) {
+                if (!isLocalMode && mqttClient && mqttClient.connected) {
                     // ส่งคำสั่งผ่าน MQTT (Online)
                     const cmdPayload = JSON.stringify({ action: "EMERGENCY_STOP" });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
@@ -434,7 +381,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateUiLeds() {
         if (ledPower) ledPower.classList.add("active"); // Power always on if dashboard loaded
         
-        if (window.isLocalMode) {
+        if (isLocalMode) {
             if (ledLocal) ledLocal.classList.add("active");
             if (ledOnline) ledOnline.classList.remove("active");
         } else {
@@ -480,28 +427,18 @@ document.addEventListener("DOMContentLoaded", () => {
             saveApBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                if (window.isLocalMode) {
-                    const response = await fetch(`/api/save-ap?apSsid=${encodeURIComponent(apSsid)}&apPass=${encodeURIComponent(apPass)}`, { method: "POST" });
-                    const resData = await response.json();
-                    if (resData.success) {
-                        alert("✅ " + resData.message);
-                    } else {
-                        alert("❌ บันทึกไม่สำเร็จ");
-                    }
+                const response = await fetch(`/api/save-ap?apSsid=${encodeURIComponent(apSsid)}&apPass=${encodeURIComponent(apPass)}`, {
+                    method: "POST"
+                });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ " + resData.message);
                 } else {
-                    if (mqttClient && mqttClient.connected) {
-                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_AP_WIFI", apSsid: apSsid, apPass: apPass }));
-                        alert("✅ ส่งคำสั่งบันทึก AP WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
-                    } else {
-                        throw new Error("MQTT_BLOCKED");
-                    }
+                    alert("❌ บันทึกไม่สำเร็จ");
                 }
             } catch (err) {
-                if (err.message === "MQTT_BLOCKED") {
-                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
-                } else {
-                    alert("❌ ติดต่อ ESP32 ไม่ได้!");
-                }
+                alert("❌ ติดต่อ ESP32 ไม่ได้!");
             } finally {
                 saveApBtn.disabled = false;
                 saveApBtn.textContent = "บันทึกชื่อ/รหัสผ่านเครื่อง";
@@ -515,26 +452,14 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!confirm("คุณต้องการรีเซ็ตค่าเริ่มต้นของเครื่องใช่หรือไม่?")) return;
 
             try {
-                if (window.isLocalMode) {
-                    const response = await fetch("/api/reset-wifi", { method: "POST" });
-                    const resData = await response.json();
-                    if (resData.success) {
-                        alert("✅ ล้างค่าเรียบร้อย ESP32 กำลังรีบูต");
-                    }
-                } else {
-                    if (mqttClient && mqttClient.connected) {
-                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "RESET_WIFI" }));
-                        alert("✅ ส่งคำสั่งรีเซ็ต WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
-                    } else {
-                        throw new Error("MQTT_BLOCKED");
-                    }
+                const response = await fetch("/api/reset-wifi", { method: "POST" });
+                const resData = await response.json();
+                
+                if (resData.success) {
+                    alert("✅ ล้างค่าเรียบร้อย ESP32 กำลังรีบูต");
                 }
             } catch (err) {
-                if (err.message === "MQTT_BLOCKED") {
-                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
-                } else {
-                    alert("❌ ส่งคำสั่งรีเซ็ตไม่สำเร็จ");
-                }
+                alert("❌ ส่งคำสั่งรีเซ็ตไม่สำเร็จ");
             }
         });
     }
@@ -617,28 +542,18 @@ document.addEventListener("DOMContentLoaded", () => {
             connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                if (window.isLocalMode) {
-                    const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { method: "POST" });
-                    const resData = await response.json();
-                    if (resData.success) {
-                        alert("✅ " + resData.message);
-                    } else {
-                        alert("❌ " + (resData.message || "บันทึกไม่สำเร็จ"));
-                    }
+                const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
+                    method: "POST"
+                });
+                const resData = await response.json();
+
+                if (resData.success) {
+                    alert("✅ " + resData.message);
                 } else {
-                    if (mqttClient && mqttClient.connected) {
-                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_HOME_WIFI", ssid: ssid, pass: pass }));
-                        alert("✅ ส่งคำสั่งตั้งค่า WiFi บ้านเรียบร้อย (เครื่องกำลังรีบูต)");
-                    } else {
-                        throw new Error("MQTT_BLOCKED");
-                    }
+                    alert("❌ " + (resData.message || "บันทึกไม่สำเร็จ"));
                 }
             } catch (err) {
-                if (err.message === "MQTT_BLOCKED") {
-                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
-                } else {
-                    alert("❌ ติดต่อบอร์ดไม่ได้!");
-                }
+                alert("❌ ติดต่อบอร์ดไม่ได้!");
             } finally {
                 connectWifiBtn.disabled = false;
                 connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
@@ -651,26 +566,13 @@ document.addEventListener("DOMContentLoaded", () => {
         forgetWifiBtn.addEventListener("click", async () => {
             if (!confirm("คุณต้องการลืมเครือข่ายและรีเซ็ตค่า Wi-Fi ใช่หรือไม่?")) return;
             try {
-                if (window.isLocalMode) {
-                    const response = await fetch("/api/reset-wifi", { method: "POST" });
-                    const resData = await response.json();
-                    if (resData.success) {
-                        alert("✅ ลืมเครือข่ายเรียบร้อย ESP32 กำลังรีบูต");
-                    }
-                } else {
-                    if (mqttClient && mqttClient.connected) {
-                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "RESET_WIFI" }));
-                        alert("✅ ส่งคำสั่งลืมเครือข่าย WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
-                    } else {
-                        throw new Error("MQTT_BLOCKED");
-                    }
+                const response = await fetch("/api/reset-wifi", { method: "POST" });
+                const resData = await response.json();
+                if (resData.success) {
+                    alert("✅ ลบข้อมูล Wi-Fi เรียบร้อย ESP32 จะทำการรีบูตเข้าสู่ AP Mode");
                 }
             } catch (err) {
-                if (err.message === "MQTT_BLOCKED") {
-                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
-                } else {
-                    alert("❌ ลืมเครือข่ายไม่สำเร็จ");
-                }
+                alert("❌ ส่งคำสั่งล้างค่าล้มเหลว!");
             }
         });
     }
@@ -968,6 +870,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tareBtn = document.getElementById("tareBtn");
     const calibBtn = document.getElementById("calibBtn");
     const calibWeightInput = document.getElementById("calibWeightInput");
+    const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
 
     if (tareBtn) {
         tareBtn.addEventListener("click", async () => {
@@ -975,7 +878,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 tareBtn.textContent = "⏳ กำลังปรับศูนย์...";
                 tareBtn.disabled = true;
                 
-                if (window.isLocalMode) {
+                if (isLocalMode) {
                     const response = await fetch("/local-tare");
                     const result = await response.json();
                     if (result.success) {
@@ -999,7 +902,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (err.message === "MQTT_BLOCKED") {
                     alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker หรือ Brave Shields แล้วรีเฟรชหน้าเว็บ)");
                 } else {
-                    alert("❌ Error (Tare): " + err.message);
+                    alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
                 }
             } finally {
                 tareBtn.textContent = "Tare (ปรับศูนย์)";
@@ -1019,7 +922,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 calibBtn.textContent = "⏳ กำลังปรับเทียบ...";
                 calibBtn.disabled = true;
                 
-                if (window.isLocalMode) {
+                if (isLocalMode) {
                     const response = await fetch(`/local-calib?weight=${weight}`);
                     const result = await response.json();
                     if (result.success) {
@@ -1043,7 +946,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (err.message === "MQTT_BLOCKED") {
                     alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker หรือ Brave Shields แล้วรีเฟรชหน้าเว็บ)");
                 } else {
-                    alert("❌ Error (Calib): " + err.message);
+                    alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
                 }
             } finally {
                 calibBtn.textContent = "Calibration (ปรับเทียบค่า)";
@@ -1052,24 +955,9 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
     if (saveCalibrationBtn) {
-        saveCalibrationBtn.addEventListener("click", async () => {
-            const val = document.getElementById("feedAmountInput")?.value;
-            if (val && val > 0) {
-                try {
-                    await fetch("/api/settings/feed_amount", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ feed_amount: val })
-                    });
-                    alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
-                } catch (err) {
-                    alert("❌ บันทึกไม่สำเร็จ");
-                }
-            } else {
-                alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย"); // Fallback
-            }
+        saveCalibrationBtn.addEventListener("click", () => {
+            alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
         });
     }
 
@@ -1077,28 +965,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const feedAmountInput = document.getElementById("feedAmountInput");
     const indexFeedAmount = document.getElementById("feedAmount");
 
-    let feedAmountDebounceTimer = null;
-    
-    async function saveFeedAmount(val) {
+    function saveFeedAmount(val) {
         if (!val || val <= 0) return;
-        
-        // Sync the two UI inputs immediately
+        localStorage.setItem("sharedFeedAmount", val);
         if (indexFeedAmount && indexFeedAmount.value !== val) indexFeedAmount.value = val;
         if (feedAmountInput && feedAmountInput.value !== val) feedAmountInput.value = val;
-        
-        // Clear previous timer and setup new debounce to avoid spamming the database
-        if (feedAmountDebounceTimer) clearTimeout(feedAmountDebounceTimer);
-        feedAmountDebounceTimer = setTimeout(async () => {
-            try {
-                await fetch("/api/settings/feed_amount", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ feed_amount: val })
-                });
-            } catch (err) {
-                console.error("Failed to save feed amount", err);
-            }
-        }, 1000);
+    }
+
+    const savedAmount = localStorage.getItem("sharedFeedAmount");
+    if (savedAmount) {
+        if (indexFeedAmount) indexFeedAmount.value = savedAmount;
+        if (feedAmountInput) feedAmountInput.value = savedAmount;
     }
 
     if (indexFeedAmount) {
@@ -1107,15 +984,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (feedAmountInput) {
         feedAmountInput.addEventListener("input", (e) => saveFeedAmount(e.target.value));
     }
-    
-    // Load feed_amount from status on boot
-    fetch("/api/status").then(res => res.json()).then(data => {
-        if (data && data.feedAmount) {
-            const val = data.feedAmount.toString();
-            if (indexFeedAmount) indexFeedAmount.value = val;
-            if (feedAmountInput) feedAmountInput.value = val;
-        }
-    }).catch(err => console.log("Failed to fetch initial feed_amount"));
 });
 
 // --- Custom Toast Alert System ---
