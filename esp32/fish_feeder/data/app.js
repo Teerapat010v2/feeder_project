@@ -895,11 +895,15 @@ document.addEventListener("DOMContentLoaded", () => {
                         await new Promise(r => setTimeout(r, 1000));
                         alert("✅ ส่งคำสั่งปรับศูนย์ (Tare) แล้ว");
                     } else {
-                        throw new Error("MQTT_DISCONNECTED");
+                        throw new Error("MQTT_BLOCKED");
                     }
                 }
             } catch (err) {
-                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker หรือ Brave Shields แล้วรีเฟรชหน้าเว็บ)");
+                } else {
+                    alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
+                }
             } finally {
                 tareBtn.textContent = "Tare (ปรับศูนย์)";
                 tareBtn.disabled = false;
@@ -935,11 +939,15 @@ document.addEventListener("DOMContentLoaded", () => {
                         await new Promise(r => setTimeout(r, 1000));
                         alert("✅ ส่งคำสั่งปรับเทียบ (Calibration) แล้ว");
                     } else {
-                        throw new Error("MQTT_DISCONNECTED");
+                        throw new Error("MQTT_BLOCKED");
                     }
                 }
             } catch (err) {
-                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker หรือ Brave Shields แล้วรีเฟรชหน้าเว็บ)");
+                } else {
+                    alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาตรวจสอบอินเทอร์เน็ต)");
+                }
             } finally {
                 calibBtn.textContent = "Calibration (ปรับเทียบค่า)";
                 calibBtn.disabled = false;
