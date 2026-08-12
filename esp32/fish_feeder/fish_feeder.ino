@@ -131,6 +131,34 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         preferences.putFloat("calib_factor", factor);
         publishMQTTStatus();
       }
+    } else if (strcmp(action, "SET_AP_WIFI") == 0) {
+      const char* apSsid = doc["apSsid"];
+      const char* apPass = doc["apPass"];
+      if (apSsid) {
+        preferences.begin("wifi_config", false);
+        preferences.putString("ap_ssid", apSsid);
+        if (apPass && strlen(apPass) >= 8) preferences.putString("ap_pass", apPass);
+        preferences.end();
+        delay(1000);
+        ESP.restart();
+      }
+    } else if (strcmp(action, "SET_HOME_WIFI") == 0) {
+      const char* ssid = doc["ssid"];
+      const char* pass = doc["pass"];
+      if (ssid) {
+        preferences.begin("wifi_config", false);
+        preferences.putString("ssid", ssid);
+        if (pass) preferences.putString("pass", pass);
+        preferences.end();
+        delay(1000);
+        ESP.restart();
+      }
+    } else if (strcmp(action, "RESET_WIFI") == 0) {
+      preferences.begin("wifi_config", false);
+      preferences.clear();
+      preferences.end();
+      delay(1000);
+      ESP.restart();
     }
   }
 }

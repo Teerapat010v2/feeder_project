@@ -449,18 +449,28 @@ document.addEventListener("DOMContentLoaded", () => {
             saveApBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                const response = await fetch(`/api/save-ap?apSsid=${encodeURIComponent(apSsid)}&apPass=${encodeURIComponent(apPass)}`, {
-                    method: "POST"
-                });
-                const resData = await response.json();
-
-                if (resData.success) {
-                    alert("✅ " + resData.message);
+                if (window.isLocalMode) {
+                    const response = await fetch(`/api/save-ap?apSsid=${encodeURIComponent(apSsid)}&apPass=${encodeURIComponent(apPass)}`, { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ " + resData.message);
+                    } else {
+                        alert("❌ บันทึกไม่สำเร็จ");
+                    }
                 } else {
-                    alert("❌ บันทึกไม่สำเร็จ");
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_AP_WIFI", apSsid: apSsid, apPass: apPass }));
+                        alert("✅ ส่งคำสั่งบันทึก AP WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
                 }
             } catch (err) {
-                alert("❌ ติดต่อ ESP32 ไม่ได้!");
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ติดต่อ ESP32 ไม่ได้!");
+                }
             } finally {
                 saveApBtn.disabled = false;
                 saveApBtn.textContent = "บันทึกชื่อ/รหัสผ่านเครื่อง";
@@ -474,14 +484,26 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!confirm("คุณต้องการรีเซ็ตค่าเริ่มต้นของเครื่องใช่หรือไม่?")) return;
 
             try {
-                const response = await fetch("/api/reset-wifi", { method: "POST" });
-                const resData = await response.json();
-                
-                if (resData.success) {
-                    alert("✅ ล้างค่าเรียบร้อย ESP32 กำลังรีบูต");
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/reset-wifi", { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ ล้างค่าเรียบร้อย ESP32 กำลังรีบูต");
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "RESET_WIFI" }));
+                        alert("✅ ส่งคำสั่งรีเซ็ต WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
                 }
             } catch (err) {
-                alert("❌ ส่งคำสั่งรีเซ็ตไม่สำเร็จ");
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ส่งคำสั่งรีเซ็ตไม่สำเร็จ");
+                }
             }
         });
     }
@@ -564,18 +586,28 @@ document.addEventListener("DOMContentLoaded", () => {
             connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
 
             try {
-                const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, {
-                    method: "POST"
-                });
-                const resData = await response.json();
-
-                if (resData.success) {
-                    alert("✅ " + resData.message);
+                if (window.isLocalMode) {
+                    const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ " + resData.message);
+                    } else {
+                        alert("❌ " + (resData.message || "บันทึกไม่สำเร็จ"));
+                    }
                 } else {
-                    alert("❌ " + (resData.message || "บันทึกไม่สำเร็จ"));
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_HOME_WIFI", ssid: ssid, pass: pass }));
+                        alert("✅ ส่งคำสั่งตั้งค่า WiFi บ้านเรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
                 }
             } catch (err) {
-                alert("❌ ติดต่อบอร์ดไม่ได้!");
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ติดต่อบอร์ดไม่ได้!");
+                }
             } finally {
                 connectWifiBtn.disabled = false;
                 connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
@@ -588,13 +620,26 @@ document.addEventListener("DOMContentLoaded", () => {
         forgetWifiBtn.addEventListener("click", async () => {
             if (!confirm("คุณต้องการลืมเครือข่ายและรีเซ็ตค่า Wi-Fi ใช่หรือไม่?")) return;
             try {
-                const response = await fetch("/api/reset-wifi", { method: "POST" });
-                const resData = await response.json();
-                if (resData.success) {
-                    alert("✅ ลบข้อมูล Wi-Fi เรียบร้อย ESP32 จะทำการรีบูตเข้าสู่ AP Mode");
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/reset-wifi", { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ ลืมเครือข่ายเรียบร้อย ESP32 กำลังรีบูต");
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "RESET_WIFI" }));
+                        alert("✅ ส่งคำสั่งลืมเครือข่าย WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
                 }
             } catch (err) {
-                alert("❌ ส่งคำสั่งล้างค่าล้มเหลว!");
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ลืมเครือข่ายไม่สำเร็จ");
+                }
             }
         });
     }
