@@ -311,10 +311,10 @@ async function handleHistory(data) {
     try {
         let latestData = data;
         
-        // If the new firmware sends an array of history, extract the latest one (which is at the end of the array)
+        // ESP32 sends the array with the latest record at index 0
         if (Array.isArray(data)) {
             if (data.length === 0) return;
-            latestData = data[data.length - 1];
+            latestData = data[0];
         }
 
         const history = {
