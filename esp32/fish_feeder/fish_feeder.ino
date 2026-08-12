@@ -365,6 +365,7 @@ void setup() {
   espClient.setInsecure(); // ไม่ตรวจสอบ SSL Cert
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(2048); // เพิ่ม Buffer Size รองรับ JSON Array ยาวๆ
   
   preferences.begin("wifi_config", true);
   String savedApSsid = preferences.getString("ap_ssid", "FishFeeder-AP");
