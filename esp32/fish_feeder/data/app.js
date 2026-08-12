@@ -877,15 +877,26 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 tareBtn.textContent = "⏳ กำลังปรับศูนย์...";
                 tareBtn.disabled = true;
-                const response = await fetch("/local-tare");
-                const result = await response.json();
-                if (result.success) {
-                    alert("✅ ปรับศูนย์ (Tare) สำเร็จ");
+                
+                if (isLocalMode) {
+                    const response = await fetch("/local-tare");
+                    const result = await response.json();
+                    if (result.success) {
+                        alert("✅ ปรับศูนย์ (Tare) สำเร็จ");
+                    } else {
+                        alert("❌ ปรับศูนย์ไม่สำเร็จ");
+                    }
                 } else {
-                    alert("❌ ปรับศูนย์ไม่สำเร็จ");
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "TARE" }));
+                        await new Promise(r => setTimeout(r, 1000));
+                        alert("✅ ส่งคำสั่งปรับศูนย์ (Tare) แล้ว");
+                    } else {
+                        throw new Error("MQTT_DISCONNECTED");
+                    }
                 }
             } catch (err) {
-                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง)");
+                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง หรือรอสักครู่)");
             } finally {
                 tareBtn.textContent = "Tare (ปรับศูนย์)";
                 tareBtn.disabled = false;
@@ -903,15 +914,26 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 calibBtn.textContent = "⏳ กำลังปรับเทียบ...";
                 calibBtn.disabled = true;
-                const response = await fetch(`/local-calib?weight=${weight}`);
-                const result = await response.json();
-                if (result.success) {
-                    alert(`✅ ปรับเทียบ (Calibration) สำเร็จ\nค่า Factor ใหม่: ${result.factor}`);
+                
+                if (isLocalMode) {
+                    const response = await fetch(`/local-calib?weight=${weight}`);
+                    const result = await response.json();
+                    if (result.success) {
+                        alert(`✅ ปรับเทียบ (Calibration) สำเร็จ\nค่า Factor ใหม่: ${result.factor}`);
+                    } else {
+                        alert("❌ ปรับเทียบไม่สำเร็จ");
+                    }
                 } else {
-                    alert("❌ ปรับเทียบไม่สำเร็จ");
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "CALIBRATE", weight: parseFloat(weight) }));
+                        await new Promise(r => setTimeout(r, 1000));
+                        alert("✅ ส่งคำสั่งปรับเทียบ (Calibration) แล้ว");
+                    } else {
+                        throw new Error("MQTT_DISCONNECTED");
+                    }
                 }
             } catch (err) {
-                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง)");
+                alert("❌ ไม่สามารถติดต่อเครื่องได้ (กรุณาต่อ Wi-Fi เครื่อง หรือรอสักครู่)");
             } finally {
                 calibBtn.textContent = "Calibration (ปรับเทียบค่า)";
                 calibBtn.disabled = false;

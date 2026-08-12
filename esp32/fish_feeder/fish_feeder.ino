@@ -120,6 +120,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       forceManualMode = (strcmp(doc["mode"] | "AUTO", "MANUAL") == 0);
       saveModeSettings();
       publishMQTTStatus();
+    } else if (strcmp(action, "TARE") == 0) {
+      scale.tare();
+      publishMQTTStatus();
+    } else if (strcmp(action, "CALIBRATE") == 0) {
+      float known_weight = doc["weight"] | 0.0;
+      if (known_weight > 0) {
+        float factor = scale.get_value(10) / known_weight;
+        scale.set_scale(factor);
+        preferences.putFloat("calib_factor", factor);
+        publishMQTTStatus();
+      }
     }
   }
 }
