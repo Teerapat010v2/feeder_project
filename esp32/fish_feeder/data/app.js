@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
             console.log("✅ เชื่อมต่อ HiveMQ สำเร็จ");
             mqttClient.subscribe(TOPIC_STATUS);
             if (connStatus) {
-                connStatus.className = "status-badge green";
+                connStatus.className = "status-badge online";
                 connStatus.innerText = "● Online";
             }
         });
