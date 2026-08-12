@@ -408,22 +408,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // --- 5. อัปเดตเวลาให้อาหาร (Dashboard) ---
-    async function loadDashboardTimes() {
+    function updateDashboardLastFeed(history) {
         const lastFeedTimeEl = document.getElementById("lastFeedTime");
-        const nextFeedTimeEl = document.getElementById("nextFeedTime");
-        if (!lastFeedTimeEl || !nextFeedTimeEl) return; // ไม่ใช่หน้า Dashboard
+        if (!lastFeedTimeEl) return;
+        if (history && history.length > 0) {
+            const lastFeedDate = new Date(history[0].timestamp);
+            lastFeedTimeEl.textContent = lastFeedDate.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' }) + " น.";
+        } else {
+            lastFeedTimeEl.textContent = "--:-- น.";
+        }
+    }
 
+    function updateDashboardNextFeed(schedules) {
+        const nextFeedTimeEl = document.getElementById("nextFeedTime");
+        if (!nextFeedTimeEl) return;
+        
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        
+        let nextTimeStr = null;
+        let minDiff = Infinity;
+
+        for (let s of schedules) {
+            if (s.enable && s.time) {
+                const [h, m] = s.time.split(":");
+                const schedMinutes = parseInt(h) * 60 + parseInt(m);
+                
+                let diff = schedMinutes - currentMinutes;
+                if (diff <= 0) {
+                    diff += 24 * 60; // วันพรุ่งนี้
+                }
+                
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    nextTimeStr = s.time;
+                }
+            }
+        }
+        
+        if (nextTimeStr) {
+            nextFeedTimeEl.textContent = nextTimeStr + " น.";
+        } else {
+            nextFeedTimeEl.textContent = "ปิด (Off)";
+        }
+    }
+
+    async function loadDashboardTimes() {
+        if (!window.isLocalMode) return; // Online mode uses MQTT events
         try {
             // ดึงเวลาให้อาหารล่าสุด
             const historyRes = await fetch("/api/history", {
                 headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
             });
             if (historyRes.ok) {
-                const history = await historyRes.json();
-                if (history && history.length > 0) {
-                    const lastFeedDate = new Date(history[0].timestamp);
-                    lastFeedTimeEl.textContent = lastFeedDate.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' }) + " น.";
-                }
+                updateDashboardLastFeed(await historyRes.json());
             }
 
             // ดึงเวลาที่จะให้อาหารอัตโนมัติครั้งถัดไป
@@ -431,40 +469,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
             });
             if (scheduleRes.ok) {
-                const schedules = await scheduleRes.json();
-                const now = new Date();
-                const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                
-                let nextTimeStr = null;
-                let minDiff = Infinity;
-
-                for (let s of schedules) {
-                    if (s.enable && s.time) {
-                        const [h, m] = s.time.split(":");
-                        const schedMinutes = parseInt(h) * 60 + parseInt(m);
-                        
-                        let diff = schedMinutes - currentMinutes;
-                        if (diff <= 0) {
-                            diff += 24 * 60; // วันพรุ่งนี้
-                        }
-                        
-                        if (diff < minDiff) {
-                            minDiff = diff;
-                            nextTimeStr = s.time;
-                        }
-                    }
-                }
-                
-                if (nextTimeStr) {
-                    nextFeedTimeEl.textContent = nextTimeStr + " น.";
-                } else {
-                    nextFeedTimeEl.textContent = "ปิด (Off)";
-                }
+                updateDashboardNextFeed(await scheduleRes.json());
             }
         } catch (err) {
             console.warn("โหลดเวลา Dashboard ไม่สำเร็จ", err);
         }
     }
+
+    window.addEventListener('scheduleUpdatedUI', (e) => {
+        if (e.detail && Array.isArray(e.detail)) {
+            updateDashboardNextFeed(e.detail);
+        }
+    });
+
+    window.addEventListener('historyUpdatedUI', (e) => {
+        if (e.detail && Array.isArray(e.detail)) {
+            updateDashboardLastFeed(e.detail);
+        }
+    });
 
     // เรียกตอนโหลดหน้าจอ
     loadDashboardTimes();
