@@ -588,14 +588,8 @@ void handleApiStatus() {
   float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
   if (weight < 0) weight = 0.0; 
 
-  // Check mode
-  String currentMode = "MANUAL";
-  for (int i = 0; i < scheduleCount; i++) {
-    if (localSchedules[i].enable) {
-      currentMode = "AUTO";
-      break;
-    }
-  }
+  // ใช้ตัวแปร forceManualMode จริงๆ แทนการดูจาก schedule
+  String currentMode = forceManualMode ? "MANUAL" : "AUTO";
 
   StaticJsonDocument<256> doc;
   doc["online"] = true;
@@ -606,6 +600,7 @@ void handleApiStatus() {
   doc["motor_status"]   = isFeeding ? "FEEDING" : "READY";
   doc["scale_status"]   = scale.is_ready() ? "NORMAL" : "ERROR";
   doc["mode"]           = currentMode;
+  doc["schedule_count"] = scheduleCount;
 
   String response;
   serializeJson(doc, response);

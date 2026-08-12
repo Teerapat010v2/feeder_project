@@ -284,13 +284,21 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
         // [LOCAL MODE] ใช้ HTTP Fetch
         console.log("🏠 กำลังใช้งาน Local Mode...");
+        let lastScheduleCount = -1;
+
         async function fetchRealtimeWeight() {
             try {
                 const response = await fetch("/api/status");
                 if (!response.ok) throw new Error("ดึงข้อมูลไม่สำเร็จ");
                 const data = await response.json();
-                
                 updateDashboardUI(data, true);
+
+                // ถ้า schedule_count เปลี่ยน (Online สั่งเปลี่ยน) ให้โหลด schedule ใหม่
+                if (data.schedule_count !== undefined && data.schedule_count !== lastScheduleCount) {
+                    lastScheduleCount = data.schedule_count;
+                    const scheduleEvent = new CustomEvent('scheduleUpdated');
+                    window.dispatchEvent(scheduleEvent);
+                }
             } catch (err) {
                 console.warn("⚡ กำลังเชื่อมต่อกับบอร์ด ESP32...");
                 updateDashboardUI(0, false);
@@ -860,6 +868,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 saveScheduleBtn.textContent = "บันทึกตารางเวลา";
             }
         });
+    }
+
+    if (window.isLocalMode) {
+        // ฟัง event จากหน้า index เมื่อ schedule_count เปลี่ยน
+        window.addEventListener('scheduleUpdated', () => {
+            loadSchedules();
+        });
+        // poll schedule ทุก 5 วินาที ในโหมด Local เพื่อรับการเปลี่ยนแปลงจาก Online
+        setInterval(loadSchedules, 5000);
     }
 
     loadSchedules();
