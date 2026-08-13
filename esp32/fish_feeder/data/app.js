@@ -1106,13 +1106,22 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) return;
 
             try {
-                const response = await fetch("/api/history", {
-                    method: "DELETE",
-                    headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
-                });
-                if (response.ok) {
-                    alert("✅ ล้างประวัติเรียบร้อย");
-                    loadHistory();
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/history", {
+                        method: "DELETE",
+                        headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+                    });
+                    if (response.ok) {
+                        alert("✅ ล้างประวัติเรียบร้อย");
+                        loadHistory();
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "CLEAR_HISTORY" }));
+                        alert("✅ ส่งคำสั่งล้างประวัติผ่านระบบออนไลน์แล้ว");
+                    } else {
+                        alert("❌ ไม่สามารถเชื่อมต่อ MQTT ได้");
+                    }
                 }
             } catch (err) {
                 alert("❌ ล้างประวัติล้มเหลว");
@@ -1120,7 +1129,15 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    loadHistory();
+    window.addEventListener('historyUpdatedUI', (e) => {
+        if (e.detail && Array.isArray(e.detail)) {
+            renderHistory(e.detail);
+        }
+    });
+
+    if (window.isLocalMode) {
+        loadHistory();
+    }
 });
 
 // Add missing listeners for Schedule/Weight tabs and Print Report button
