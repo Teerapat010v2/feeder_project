@@ -13,16 +13,16 @@ function calculateFoodStatus(weightRemaining, dailyUsage) {
     if (daysRemaining < 3) {
         return {
             level: 'red',
-            label: 'วิกฤต',
+            label: 'เติมอาหาร',
             daysRemaining: Number(daysRemaining.toFixed(1)),
             weightRemaining
         };
     }
 
-    if (daysRemaining < 7) {
+    if (daysRemaining <= 7) {
         return {
             level: 'yellow',
-            label: 'เตือน',
+            label: 'เหลือน้อย',
             daysRemaining: Number(daysRemaining.toFixed(1)),
             weightRemaining
         };

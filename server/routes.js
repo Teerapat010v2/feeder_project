@@ -5,7 +5,7 @@ const mqtt = require("./mqtt");
 const database = require("./database");
 const { checkDeviceAuth } = require("./auth");
 
-const MAX_FEED_GRAMS = 500; // กันสั่งให้อาหารเกินขนาดถัง/มอเตอร์
+const MAX_FEED_GRAMS = 3000; // กันสั่งให้อาหารเกินขนาดถัง/มอเตอร์
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/; // HH:mm
 const MAX_SCHEDULE_ROUNDS = 4; // ตาม README
 
@@ -172,7 +172,7 @@ router.post("/feed", async (req, res) => {
 
         }
 
-        mqtt.feed(grams);
+        await mqtt.feed(grams);
 
         res.json({
             success: true,
@@ -194,15 +194,33 @@ router.post("/feed", async (req, res) => {
 // POST STOP
 // =======================================
 
-router.post("/stop", (req, res) => {
+router.post("/stop", async (req, res) => {
 
-    mqtt.stop();
+    await mqtt.stop();
 
     res.json({
         success: true,
         message: "Stop command sent."
     });
 
+});
+
+// =======================================
+// POST SETTINGS
+// =======================================
+
+router.post("/settings/feed_amount", async (req, res) => {
+    try {
+        const { feed_amount } = req.body;
+        if (!feed_amount || isNaN(feed_amount) || feed_amount <= 0) {
+            return res.status(400).json({ success: false, message: "Invalid feed_amount" });
+        }
+        await database.updateDevice({ feedAmount: Number(feed_amount) });
+        res.json({ success: true, message: "Feed amount saved." });
+    } catch (err) {
+        console.error("API Error (feed_amount):", err);
+        res.status(500).json({ success: false, message: "Server error" });
+    }
 });
 
 // =======================================
@@ -242,6 +260,13 @@ router.post("/schedule", async (req, res) => {
                     message: `รูปแบบเวลาไม่ถูกต้อง (ต้องเป็น HH:mm): ${item?.time}`
                 });
 
+            }
+            
+            if (item.amount !== undefined && (isNaN(Number(item.amount)) || Number(item.amount) <= 0 || Number(item.amount) > MAX_FEED_GRAMS)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `ปริมาณอาหารไม่ถูกต้อง (1-${MAX_FEED_GRAMS} กรัม): ${item?.amount}`
+                });
             }
 
         }

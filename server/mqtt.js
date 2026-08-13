@@ -14,12 +14,10 @@ if (!process.env.MQTT_HOST || !process.env.MQTT_PORT) {
     console.warn("[MQTT] MQTT_HOST / MQTT_PORT ไม่ได้ถูกตั้งค่าใน .env — MQTT จะเชื่อมต่อไม่ได้");
 }
 
-const client = mqtt.connect({
-    protocol: "mqtts",
-    host: process.env.MQTT_HOST,
-    port: Number(process.env.MQTT_PORT),
-    username: process.env.MQTT_USER,
-    password: process.env.MQTT_PASS,
+const client = mqtt.connect("mqtts://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8883", {
+    username: "teerapat",
+    password: "Teerapat99",
+    clientId: "vercel-serverless-" + Math.random().toString(16).substr(2, 8),
     reconnectPeriod: 5000,
     connectTimeout: 10000,
     // ค่าเดิมเป็น false เสมอ (ปิดการตรวจ cert) ซึ่งเสี่ยงต่อ MITM
@@ -31,20 +29,16 @@ const client = mqtt.connect({
 // TOPICS
 // ==========================
 
+const DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
+
 const TOPIC = {
-
-    COMMAND: "fishfeeder/command",   // Server -> Device (สั่งงาน)
-
-    STATUS: "fishfeeder/status",     // Device -> Server
-
-    WEIGHT: "fishfeeder/weight",     // Device -> Server
-
-    ALERT: "fishfeeder/alert",       // Device -> Server
-
-    HISTORY: "fishfeeder/history",   // Device -> Server
-
-    SCHEDULE: "fishfeeder/schedule"  // Server -> Device (sync ตาราง)
-
+    COMMAND: `fishfeeder/${DEVICE_ID}/cmd/command`,   // Server -> Device
+    STATUS: `fishfeeder/${DEVICE_ID}/status`,         // Device -> Server
+    WEIGHT: `fishfeeder/${DEVICE_ID}/weight`,         // Device -> Server
+    ALERT: `fishfeeder/${DEVICE_ID}/alert`,           // Device -> Server
+    HISTORY: `fishfeeder/${DEVICE_ID}/history`,       // Device -> Server
+    SCHEDULE: `fishfeeder/${DEVICE_ID}/schedule`,     // Server -> Device
+    SCHEDULE_UPDATE: `fishfeeder/${DEVICE_ID}/schedule_update` // Device -> Server (Local UI)
 };
 
 // เดิม subscribe ทุก topic รวมถึง COMMAND/SCHEDULE ที่ตัวเอง publish เอง (ฟัง echo ตัวเองโดยเปล่าประโยชน์)
@@ -53,7 +47,8 @@ const SUBSCRIBE_TOPICS = [
     TOPIC.STATUS,
     TOPIC.WEIGHT,
     TOPIC.ALERT,
-    TOPIC.HISTORY
+    TOPIC.HISTORY,
+    TOPIC.SCHEDULE_UPDATE
 ];
 
 // ==========================
@@ -171,6 +166,10 @@ async function onMessage(topic, message) {
                 await handleHistory(data);
             break;
 
+            case TOPIC.SCHEDULE_UPDATE:
+                await handleScheduleUpdate(data);
+            break;
+
         }
 
     }
@@ -188,38 +187,25 @@ async function handleStatus(data) {
 
     try {
 
+        const isOnline = data.online !== undefined ? data.online : true;
+
         await database.updateDevice({
-
-            online: true,
-
+            online: isOnline,
             feeding: data.feeding || false,
-
             lastSeen: new Date(),
-
             firmware: data.firmware || "",
-
             ip: data.ip || "",
-
             wifi: data.wifi || 0
-
         });
 
         if (io) {
-
             io.emit("status", {
-
-                online: true,
-
+                online: isOnline,
                 feeding: data.feeding || false,
-
                 firmware: data.firmware,
-
                 ip: data.ip,
-
                 wifi: data.wifi
-
             });
-
         }
 
     } catch (err) {
@@ -323,12 +309,19 @@ async function handleAlert(data) {
 async function handleHistory(data) {
 
     try {
+        let latestData = data;
+        
+        // ESP32 sends the array with the latest record at index 0
+        if (Array.isArray(data)) {
+            if (data.length === 0) return;
+            latestData = data[0];
+        }
 
         const history = {
 
-            amount: data.amount || 0,
+            amount: latestData.amount || 0,
 
-            mode: data.mode || "manual"
+            mode: latestData.mode || "manual"
 
         };
 
@@ -353,32 +346,22 @@ async function handleHistory(data) {
 // FEED COMMAND
 // ==========================
 
-function feed(grams = 30) {
-
-    publish(TOPIC.COMMAND, {
-
-        action: "feed",
-
-        grams: Number(grams),
-
+async function feed(grams = 30) {
+    await publish(TOPIC.COMMAND, {
+        action: "FEED",
+        amount: Number(grams),
         mode: "manual"
-
     });
-
 }
 
 // ==========================
 // STOP COMMAND
 // ==========================
 
-function stop() {
-
-    publish(TOPIC.COMMAND, {
-
-        action: "stop"
-
+async function stop() {
+    await publish(TOPIC.COMMAND, {
+        action: "EMERGENCY_STOP"
     });
-
 }
 
 // ==========================
@@ -391,11 +374,9 @@ async function schedule(schedules) {
 
         await database.saveSchedules(schedules);
 
-        publish(TOPIC.SCHEDULE, {
-
+        await publish(TOPIC.SCHEDULE, {
             schedules
-
-        });
+        }, true);
 
         if (io) {
 
@@ -409,6 +390,25 @@ async function schedule(schedules) {
 
     }
 
+}
+
+// ==========================
+// HANDLE SCHEDULE UPDATE (FROM LOCAL)
+// ==========================
+
+async function handleScheduleUpdate(data) {
+    try {
+        const schedulesArray = data.schedules || data;
+        if (Array.isArray(schedulesArray)) {
+            await database.saveSchedules(schedulesArray);
+            if (io) {
+                io.emit("schedule", schedulesArray);
+            }
+            console.log("[MQTT] 🔄 Schedule updated from Local Mode:", schedulesArray.length, "items");
+        }
+    } catch (err) {
+        console.log("[MQTT] Schedule Update Error:", err.message);
+    }
 }
 
 // ==========================
@@ -493,44 +493,29 @@ async function refreshDashboard() {
 // MQTT PUBLISH
 // ==========================
 
-function publish(topic, payload) {
-
-    if (!client.connected) {
-        console.log("[MQTT] Publish skipped, not connected:", topic);
-        return;
-    }
-
-    client.publish(
-
-        topic,
-
-        JSON.stringify(payload),
-
-        {
-
-            qos: 1,
-
-            retain: false
-
-        },
-
-        (err) => {
-
-            if (err) {
-
-                console.log("Publish Error :", err.message);
-
-            } else {
-
-                console.log("Publish >", topic);
-
+function publish(topic, payload, retain = false) {
+    return new Promise((resolve, reject) => {
+        client.publish(
+            topic,
+            JSON.stringify(payload),
+            {
+                qos: 1,
+                retain: retain
+            },
+            (err) => {
+                if (err) {
+                    console.log("Publish Error :", err.message);
+                    reject(err);
+                } else {
+                    console.log("Publish >", topic);
+                    resolve();
+                }
             }
-
-        }
-
-    );
-
+        );
+    });
 }
+
+// END PUBLISH
 
 // ==========================
 // EXPORT

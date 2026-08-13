@@ -2,10 +2,9 @@
   "name": "fish-feeder-iot",
   "version": "2.0.0",
   "description": "Fish Feeder IoT Dashboard",
-  "main": "server/server.js",
+  "main": "index.html",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "nodemon server/server.js"
+    "start": "echo 'No start script for Vercel Static'"
   },
   "dependencies": {
     "@vercel/postgres": "^0.10.0",

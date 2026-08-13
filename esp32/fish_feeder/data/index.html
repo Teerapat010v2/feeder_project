@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fish Feeder Dashboard</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"><link rel="stylesheet" href="/style.css?v=3.06">
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -40,6 +40,9 @@
             <a href="history.html" class="menu-item">ประวัติการทำงาน</a>
             <a href="settings.html" class="menu-item">ตั้งค่าอุปกรณ์</a>
         </nav>
+        <div class="sidebar-footer">
+            โครงงานนักศึกษาของมหาวิทยาลัยราชภัฏบุรีรัมย์<br>สาขาเทคโนโลยีสารสนเทศ ปี 2569
+        </div>
     </aside>
 
     <!-- MAIN CONTAINER -->
@@ -52,58 +55,87 @@
         <!-- ฝั่งซ้าย: สถานะอุปกรณ์ -->
         <div class="card mini-status-card">
             <div class="mini-card-title">สถานะอุปกรณ์</div>
-            <div class="status-grid mini">
-                <div class="status-item">
-                    <span class="status-label">โหมด:</span>
-                    <span id="statusCurrentMode" class="status-value-text green">Auto</span>
+            <div class="status-grid mini modern">
+                <div class="status-item modern-pill">
+                    <svg class="status-icon" style="color: #1a73e8; width:24px; height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6"/></svg>
+                    <div class="pill-content">
+                        <span class="status-label">โหมด:</span>
+                        <span id="statusCurrentMode" class="status-value-text green">Auto</span>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <span class="status-label">มอเตอร์:</span>
-                    <span id="statusMotor" class="status-value-text gray">พร้อม</span>
+                <div class="status-item modern-pill">
+                    <svg class="status-icon" style="color: #fb8c00; width:24px; height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <div class="pill-content">
+                        <span class="status-label">มอเตอร์:</span>
+                        <span id="statusMotor" class="status-value-text gray">พร้อม</span>
+                    </div>
                 </div>
-                <div class="status-item">
-                    <span class="status-label">ตาชั่ง:</span>
-                    <span id="statusSensor" class="status-value-text green">ปกติ</span>
+                <div class="status-item modern-pill">
+                    <svg class="status-icon" style="color: #34a853; width:24px; height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    <div class="pill-content">
+                        <span class="status-label">ตาชั่ง:</span>
+                        <span id="statusSensor" class="status-value-text green">ปกติ</span>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 💡 ฝั่งขวา: LED Status -->
         <div class="card mini-status-card">
-            <div class="mini-card-title">LED Status</div>
-            <div class="led-status-wrapper mini">
-                <div class="led-item">
-                    <span id="ledPower" class="led-light red"></span>
-                    <span class="led-label">Power</span>
+            <div class="mini-card-title">สถานะการเชื่อมต่อ</div>
+            <div class="status-grid mini modern">
+                <div class="status-item modern-pill">
+                    <svg class="status-icon" style="color: #ea4335; width:24px; height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg>
+                    <div class="pill-content">
+                        <span class="status-label">Power</span>
+                        <div style="display: flex; justify-content: center; margin-top: 4px;">
+                            <span id="ledPower" class="led-light red"></span>
+                        </div>
+                    </div>
                 </div>
-                <div class="led-item">
-                    <span id="ledAp" class="led-light yellow"></span>
-                    <span class="led-label">AP</span>
+                <div class="status-item modern-pill">
+                    <svg class="status-icon" style="color: #fbbc04; width:24px; height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                    <div class="pill-content">
+                        <span class="status-label">Local</span>
+                        <div style="display: flex; justify-content: center; margin-top: 4px;">
+                            <span id="ledAp" class="led-light yellow"></span>
+                        </div>
+                    </div>
                 </div>
-                <div class="led-item">
-                    <span id="ledMqtt" class="led-light green"></span>
-                    <span class="led-label">HiveMQ</span>
+                <div class="status-item modern-pill">
+                    <svg class="status-icon" style="color: #34a853; width:24px; height:24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+                    <div class="pill-content">
+                        <span class="status-label">Online</span>
+                        <div style="display: flex; justify-content: center; margin-top: 4px;">
+                            <span id="ledMqtt" class="led-light green"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
     </div>
 </div>
-        <!-- 🪣 น้ำหนักอาหารจริงแบบ Real-time -->
-        <div class="card">
-            <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>อาหารคงเหลือในถัง</span>
+        <!-- 🪣 น้ำหนักอาหารจริงแบบ Real-time (Premium Design) -->
+        <div class="card premium-tank-card">
+            <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 16px;">
+                <span style="font-size: 1.1rem; font-weight: 600;">อาหารคงเหลือในถัง</span>
                 <span id="foodStatusBadge" class="status-badge gray">รอเชื่อมต่อ...</span>
             </div>
             <div class="tank-container">
-                <div class="tank-info" style="justify-content: center; padding: 12px 0;">
-                    <span id="tankWeightText" class="tank-weight" style="font-size: 40px; font-weight: 800; color: var(--primary-color);">0 g</span>
+                <div class="premium-weight-display">
+                    <span id="tankWeightText" class="premium-tank-weight">0.0</span>
+                    
                 </div>
-                <div class="progress-bar-bg">
-                    <div id="tankProgressBar" class="progress-bar-fill" style="width: 0%;"></div>
+                
+                <div class="premium-progress-bg">
+                    <div id="tankProgressBar" class="premium-progress-fill" style="width: 0%;">
+                        <div class="progress-glow"></div>
+                    </div>
                 </div>
-                <div class="days-remaining-box" style="margin-top: 12px;">
-                    ใช้งานต่อได้อีกประมาณ: <strong id="daysRemainingText">-- วัน</strong>
+                
+                <div class="premium-days-remaining">
+                    <svg width="16" height="16" style="vertical-align:-2px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ให้อาหารอัตโนมัติได้อีก: <strong id="daysRemainingText">-- วัน</strong>
                 </div>
             </div>
         </div>
@@ -111,7 +143,7 @@
         <div class="card compact-card">
             <div class="mode-toggle-wrapper">
                 <span class="toggle-label" id="label-auto">โหมดอัตโนมัติ (Auto)</span>
-                <label class="switch">
+                <label class="toggle-switch">
                     <input type="checkbox" id="modeToggle">
                     <span class="slider round"></span>
                 </label>
@@ -124,11 +156,11 @@
             <div class="card-header-title">สั่งให้อาหารทันที</div>
             <div class="input-group">
                 <label for="feedAmount">ปริมาณอาหารที่ต้องการปล่อย (กรัม):</label>
-                <input type="number" id="feedAmount" value="10" min="1" max="100">
+                <input type="number" id="feedAmount" value="10" min="1" max="3000">
             </div>
             <div class="action-section">
-                <button id="feedBtn" class="btn-primary" disabled>สั่งให้อาหาร</button>
-                <button id="stopBtn" class="btn-danger">หยุดฉุกเฉิน</button>
+                <button type="button" id="feedBtn" class="btn-primary" disabled>สั่งให้อาหาร</button>
+                <button type="button" id="stopBtn" class="btn-danger">หยุดฉุกเฉิน</button>
             </div>
         </div>
         <!-- ⏰ ข้อมูลเวลาให้อาหาร Real-time -->
@@ -148,6 +180,8 @@
         
     </main>
 
-    <script type="module" src="/app.js"></script>
+    <!-- MQTT.js for Online WebSockets -->
+    <script src="/mqtt.min.js"></script>
+    <script type="module" src="/app.js?v=3.03"></script>
 </body>
 </html>
