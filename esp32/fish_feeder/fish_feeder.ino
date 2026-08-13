@@ -87,6 +87,7 @@ void handleApiStatus();
 void handleLocalFeed();
 void handleLocalStop();
 void handleSetMode();
+void handleSetTime();
 void handleSaveWifi();
 void handleSaveApWifi();
 void handleResetWifi();
@@ -177,6 +178,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       preferences.end();
       delay(1000);
       ESP.restart();
+    } else if (strcmp(action, "CLEAR_HISTORY") == 0) {
+      historyCount = 0;
+      if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
+          String historyTopic = "fishfeeder/" + deviceId + "/history";
+          mqttClient.publish(historyTopic.c_str(), "[]", true);
+      }
     }
   }
 }
@@ -447,6 +454,7 @@ void setup() {
   server.on("/local-calib", HTTP_GET, handleLocalCalibrate);
   server.on("/api/stop", handleLocalStop);
   server.on("/api/set-mode", HTTP_GET, handleSetMode);
+  server.on("/api/set-time", HTTP_POST, handleSetTime);
   
   // เส้นทางหน้า Settings และ Wi-Fi
   server.on("/api/save-wifi", handleSaveWifi);   
@@ -489,7 +497,8 @@ void setup() {
 // 📌 8.5 ฟังก์ชันส่งสถานะขึ้น MQTT ทันที
 // =================================================================
 void publishMQTTStatus() {
-    float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
+    bool scaleReady = scale.wait_ready_timeout(100);
+    float weight = scaleReady ? scale.get_units(3) : 0.0;
     if (weight < 0) weight = 0.0;
     
     // Check mode
@@ -501,7 +510,7 @@ void publishMQTTStatus() {
     doc["current_weight"] = weight;
     doc["status"] = isFeeding ? "FEEDING" : "IDLE";
     doc["motor_status"] = isFeeding ? "FEEDING" : "READY";
-    doc["scale_status"] = scale.is_ready() ? "NORMAL" : "ERROR";
+    doc["scale_status"] = scaleReady ? "NORMAL" : "ERROR";
     doc["mode"] = currentMode;
     doc["deviceId"] = deviceId;
     
@@ -581,6 +590,19 @@ void loop() {
     updateStatusLED();
   }
 
+  // พิมพ์น้ำหนักลง Serial Monitor ทุกๆ 2 วินาที
+  static unsigned long lastWeightPrint = 0;
+  if (millis() - lastWeightPrint >= 2000) {
+    lastWeightPrint = millis();
+    if (scale.wait_ready_timeout(100)) {
+      float currentWeight = scale.get_units(5);
+      if (currentWeight < 0) currentWeight = 0.0;
+      Serial.printf("⚖️ น้ำหนักปัจจุบัน: %.1f กรัม\n", currentWeight);
+    } else {
+      Serial.println("⚖️ ตาชั่ง: ไม่ตอบสนอง (ERROR)");
+    }
+  }
+
   yield(); 
 }
 
@@ -634,7 +656,7 @@ void stopFeeding() {
   char timeStr[32] = "Unknown Time";
   if (Rtc.GetIsRunning()) {
       RtcDateTime now = Rtc.GetDateTime();
-      snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02dT%02d:%02d:%02d", 
+      snprintf(timeStr, sizeof(timeStr), "%04d-%02d-%02dT%02d:%02d:%02d+07:00", 
                now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second());
   }
   if (historyCount < MAX_HISTORY) {
@@ -672,7 +694,8 @@ void stopFeeding() {
 void handleApiStatus() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   
-  float weight = scale.is_ready() ? scale.get_units(3) : 0.0;
+  bool scaleReady = scale.wait_ready_timeout(100);
+  float weight = scaleReady ? scale.get_units(3) : 0.0;
   if (weight < 0) weight = 0.0; 
 
   // ใช้ตัวแปร forceManualMode จริงๆ แทนการดูจาก schedule
@@ -685,7 +708,7 @@ void handleApiStatus() {
   doc["weight_grams"]   = weight; 
   doc["status"]         = isFeeding ? "FEEDING" : "IDLE";
   doc["motor_status"]   = isFeeding ? "FEEDING" : "READY";
-  doc["scale_status"]   = scale.is_ready() ? "NORMAL" : "ERROR";
+  doc["scale_status"]   = scaleReady ? "NORMAL" : "ERROR";
   doc["mode"]           = currentMode;
   doc["schedule_count"] = scheduleCount;
 
@@ -725,6 +748,34 @@ void handleSetMode() {
   }
   publishMQTTStatus();
   server.send(200, "application/json", "{\"success\":true}");
+}
+
+// =================================================================
+// 📌 13.6. API ตั้งเวลา (Sync เวลาจาก Browser ไปยัง RTC สำหรับ Local Mode)
+// =================================================================
+void handleSetTime() {
+  server.sendHeader("Access-Control-Allow-Origin", "*");
+  if (server.hasArg("plain")) {
+    String body = server.arg("plain");
+    StaticJsonDocument<256> doc;
+    DeserializationError error = deserializeJson(doc, body);
+    if (!error) {
+      int y = doc["year"] | 2026;
+      int m = doc["month"] | 1;
+      int d = doc["day"] | 1;
+      int h = doc["hour"] | 0;
+      int min = doc["minute"] | 0;
+      int s = doc["second"] | 0;
+
+      RtcDateTime compiled = RtcDateTime(y, m, d, h, min, s);
+      Rtc.SetDateTime(compiled);
+      Serial.printf("🕒 บันทึกเวลาลง RTC จาก Browser: %04d-%02d-%02d %02d:%02d:%02d\n", y, m, d, h, min, s);
+      
+      server.send(200, "application/json", "{\"success\":true}");
+      return;
+    }
+  }
+  server.send(400, "application/json", "{\"success\":false}");
 }
 
 // =================================================================
