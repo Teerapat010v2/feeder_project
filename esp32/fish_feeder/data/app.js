@@ -37,6 +37,35 @@ document.addEventListener("DOMContentLoaded", () => {
     const MAX_CAPACITY_GRAMS = 5000;
     let DAILY_USAGE_GRAMS = 20; // Default fallback
 
+    function updateDailyUsage(scheds) {
+        let total = 0;
+        if (Array.isArray(scheds)) {
+            scheds.forEach(s => {
+                if (s.enable) {
+                    total += Number(s.amount || 0);
+                }
+            });
+        }
+        DAILY_USAGE_GRAMS = total;
+        recalculateDaysRemaining();
+    }
+
+    window.addEventListener('scheduleUpdatedUI', (e) => {
+        if (document.getElementById("daysRemainingText")) {
+            updateDailyUsage(e.detail);
+        }
+    });
+
+    if (window.isLocalMode) {
+        // Local Mode fetch schedules on load
+        fetch("/api/schedule").then(r => r.json()).then(data => {
+            const scheds = Array.isArray(data) ? data : (data.schedules || []);
+            if (document.getElementById("daysRemainingText")) {
+                updateDailyUsage(scheds);
+            }
+        }).catch(e => console.warn(e));
+    }
+
     let lastWeight = 0;
 
     function recalculateDaysRemaining() {
@@ -45,9 +74,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         let daysLeftVal = 0;
         if (daysRemainingText) {
-            const daysLeft = (lastWeight / DAILY_USAGE_GRAMS);
-            daysLeftVal = daysLeft;
-            daysRemainingText.textContent = `${lastWeight > 0 ? daysLeft.toFixed(1) : "0.0"} วัน`;
+            if (DAILY_USAGE_GRAMS > 0) {
+                const daysLeft = (lastWeight / DAILY_USAGE_GRAMS);
+                daysLeftVal = daysLeft;
+                daysRemainingText.textContent = `${lastWeight > 0 ? daysLeft.toFixed(1) : "0.0"} วัน`;
+            } else {
+                daysLeftVal = 99; // No schedules = practically infinite days
+                daysRemainingText.textContent = "ไม่ได้ตั้งเวลา";
+            }
         }
 
         if (foodStatusBadge) {
