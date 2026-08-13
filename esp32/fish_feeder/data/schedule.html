@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ตั้งเวลา & ระบบชั่งน้ำหนัก - Fish Feeder</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=3.10">
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -41,6 +41,9 @@
             <a href="history.html" class="menu-item">ประวัติการทำงาน</a>
             <a href="settings.html" class="menu-item">ตั้งค่าอุปกรณ์</a>
         </nav>
+        <div class="sidebar-footer">
+            โครงงานนักศึกษาของมหาวิทยาลัยราชภัฏบุรีรัมย์<br>สาขาเทคโนโลยีสารสนเทศ ปี 2569
+        </div>
     </aside>
 
     <!-- MAIN CONTAINER -->
@@ -48,68 +51,107 @@
         
         <!-- แท็บสลับหน้า -->
         <div class="mode-selector">
-            <button id="tabScheduleBtn" class="btn-mode active">ตั้งเวลาให้อาหาร</button>
-            <button id="tabWeightBtn" class="btn-mode">ระบบชั่งน้ำหนัก</button>
+            <button type="button" id="tabScheduleBtn" class="btn-mode active">ตั้งเวลาให้อาหาร</button>
+            <button type="button" id="tabWeightBtn" class="btn-mode">ระบบชั่งน้ำหนัก</button>
         </div>
 
         <!-- หน้าที่ 1: ตั้งเวลา & ปริมาณอาหารต่อครั้ง -->
         <section id="section-schedule" class="page-section">
-            <div class="card">
-                <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>ตั้งเวลาและปริมาณอาหารต่อครั้ง</span>
-                    <span id="scheduleCountBadge" class="status-badge gray" style="font-size: 11px;">0/4 รอบ</span>
+            <div class="premium-settings-card">
+                <div class="premium-settings-header">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <div style="flex: 1;">
+                        <h3>ตารางเวลาให้อาหาร</h3>
+                        <p>กำหนดเวลาและปริมาณอาหารต่อรอบ</p>
+                    </div>
+                    <span id="scheduleCountBadge" class="status-badge gray" style="font-size: 12px; margin-left: auto;">0/4 รอบ</span>
                 </div>
 
                 <div id="scheduleContainer" class="schedule-list-wrapper"></div>
 
-                <button id="addScheduleBtn" class="btn-warning" style="margin-top: 10px; min-height: 40px; font-size: 14px;">
-                    เพิ่มรอบให้อาหาร
+                <button type="button" id="addScheduleBtn" class="btn-modern btn-yellow" style="margin-top: 16px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg> เพิ่มรอบให้อาหาร
                 </button>
 
-                <div style="margin-top: 14px;">
-                    <button id="saveScheduleBtn" class="btn-primary">บันทึกตารางเวลาลง Firebase</button>
+                <div style="margin-top: 16px;">
+                    <button type="button" id="saveScheduleBtn" class="btn-modern btn-green">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกตารางเวลา
+                    </button>
                 </div>
             </div>
         </section>
 
         <!-- หน้าที่ 2: ระบบชั่งน้ำหนัก -->
         <section id="section-weight" class="page-section" style="display: none;">
-            <div class="card">
-                <div class="card-header-title">การตั้งค่าระบบชั่งน้ำหนัก (Load Cell)</div>
+            <div class="premium-settings-card">
+                <div class="premium-settings-header">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+                    <div>
+                        <h3>การตั้งค่าระบบชั่งน้ำหนัก</h3>
+                        <p>จัดการตั้งค่า Load Cell และปริมาณอาหาร</p>
+                    </div>
+                </div>
 
                 <!-- 1. เซ็ตศูนย์ Tare -->
-                <div style="margin-bottom: 16px;">
-                    <label style="font-size: 13px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 6px;">
-                        ปรับศูนย์ตาชั่ง (Tare)
-                    </label>
-                    <button id="tareBtn" class="btn-warning">Tare (ปรับศูนย์)</button>
+                <div class="setting-row">
+                    <div class="setting-row-header">
+                        <div class="setting-icon-box bg-yellow-light"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line></svg></div>
+                        <div class="setting-info">
+                            <h4>ปรับศูนย์ตาชั่ง (Tare)</h4>
+                            <p>เคลียร์น้ำหนักภาชนะให้เป็น 0</p>
+                        </div>
+                    </div>
+                    <button id="tareBtn" class="btn-modern btn-yellow">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg> Tare (ปรับศูนย์)
+                    </button>
                 </div>
-
-                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
 
                 <!-- 2. Calibration -->
-                <div class="input-group">
-                    <label for="calibWeightInput">น้ำหนักอ้างอิง Calibration (กรัม):</label>
-                    <input type="number" id="calibWeightInput" placeholder="เช่น 100" value="100" min="1">
+                <div class="setting-row">
+                    <div class="setting-row-header">
+                        <div class="setting-icon-box bg-blue-light"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg></div>
+                        <div class="setting-info">
+                            <h4>น้ำหนักอ้างอิง Calibration</h4>
+                            <p>ใส่น้ำหนักมาตรฐานเพื่อปรับเทียบ</p>
+                        </div>
+                    </div>
+                    <div class="input-modern-wrapper">
+                        <input type="number" id="calibWeightInput" placeholder="เช่น 100" value="100" min="1">
+                        <span class="input-suffix">กรัม</span>
+                    </div>
+                    <button id="calibBtn" class="btn-modern btn-blue">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg> Calibration (ปรับเทียบค่า)
+                    </button>
                 </div>
-                <button id="calibBtn" class="btn-primary" style="background-color: #2563eb; margin-bottom: 16px;">
-                    Calibration (ปรับเทียบค่า)
-                </button>
 
-                <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
-
-                <!-- 3. ปริมาณที่ใช้ต่อครั้ง (ซิงค์ตรงกับหน้า index.html) -->
-                <div class="input-group">
-                    <label for="feedAmountInput">ปริมาณอาหารที่ใช้ต่อครั้ง (กรัม):</label>
-                    <input type="number" id="feedAmountInput" placeholder="เช่น 10" value="10" min="1" max="100">
+                <!-- 3. ปริมาณที่ใช้ต่อครั้ง -->
+                <div class="setting-row" style="margin-bottom: 0;">
+                    <div class="setting-row-header">
+                        <div class="setting-icon-box bg-green-light"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg></div>
+                        <div class="setting-info">
+                            <h4>ปริมาณอาหารที่ใช้ต่อครั้ง</h4>
+                            <p>กำหนดปริมาณตอนสั่งให้อาหารด้วยตนเอง</p>
+                        </div>
+                    </div>
+                    <div class="input-modern-wrapper">
+                        <input type="number" id="feedAmountInput" placeholder="เช่น 10" value="10" min="1" max="100">
+                        <span class="input-suffix">กรัม</span>
+                    </div>
+                    <button id="saveCalibrationBtn" class="btn-modern btn-green">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> บันทึกการตั้งค่า
+                    </button>
                 </div>
-
-                <button id="saveCalibrationBtn" class="btn-primary">บันทึกค่าลง Firebase</button>
             </div>
         </section>
 
     </main>
 
-    <script src="/app.js"></script>
+    <!-- เพิ่ม MQTT Library ใช้งานโหมด Online -->
+    <script>
+        if (window.location.hostname !== "192.168.4.1" && !window.location.hostname.startsWith("192.168.")) {
+            document.write('<script src="/mqtt.min.js"><\\/script>');
+        }
+    </script>
+    <script type="module" src="/app.js?v=3.10"></script>
 </body>
 </html>

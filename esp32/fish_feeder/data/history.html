@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ประวัติการทำงาน & รายงาน - Fish Feeder</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=3.10">
     <link rel="icon" href="data:,">
     <style>
         /* สไตล์สำหรับ Print / Export รายงาน */
@@ -71,6 +71,9 @@
             <a href="history.html" class="menu-item active">ประวัติการทำงาน</a>
             <a href="settings.html" class="menu-item">ตั้งค่าอุปกรณ์</a>
         </nav>
+        <div class="sidebar-footer">
+            โครงงานนักศึกษาของมหาวิทยาลัยราชภัฏบุรีรัมย์<br>สาขาเทคโนโลยีสารสนเทศ ปี 2569
+        </div>
     </aside>
 
     <!-- MAIN CONTAINER -->
@@ -113,15 +116,16 @@
                     พิมพ์รายงาน
                 </button>
             </div>
+            <button type="button" id="clearHistoryBtn" class="btn-danger" style="margin-top: 15px;">
+                ล้างประวัติการให้อาหาร
+            </button>
         </div>
 
         <!-- ตารางแสดงประวัติข้อมูล -->
         <div class="card">
             <div class="card-header-title" style="display: flex; justify-content: space-between; align-items: center;">
                 <span>ประวัติการให้อาหาร</span>
-                <button id="clearHistoryBtn" class="btn-danger" style="width: auto; min-height: 32px; font-size: 12px; padding: 4px 12px;">
-                    ล้างประวัติ
-                </button>
+                
             </div>
 
             <div class="table-responsive" style="overflow-x: auto; margin-top: 10px;">
@@ -147,7 +151,12 @@
 
     </main>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="/app.js"></script>
+    <!-- เพิ่ม MQTT Library ใช้งานโหมด Online -->
+    <script>
+        if (window.location.hostname !== "192.168.4.1" && !window.location.hostname.startsWith("192.168.")) {
+            document.write('<script src="/mqtt.min.js"><\\/script>');
+        }
+    </script>
+    <script type="module" src="/app.js?v=3.10"></script>
 </body>
 </html>

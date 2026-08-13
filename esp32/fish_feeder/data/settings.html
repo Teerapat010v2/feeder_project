@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ตั้งค่าอุปกรณ์ - Fish Feeder</title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=3.10">
     <link rel="icon" href="data:,">
 </head>
 <body>
@@ -41,11 +41,26 @@
             <a href="history.html" class="menu-item">ประวัติการทำงาน</a>
             <a href="settings.html" class="menu-item active">ตั้งค่าอุปกรณ์</a>
         </nav>
+        <div class="sidebar-footer">
+            โครงงานนักศึกษาของมหาวิทยาลัยราชภัฏบุรีรัมย์<br>สาขาเทคโนโลยีสารสนเทศ ปี 2569
+        </div>
     </aside>
 
     <!-- MAIN CONTAINER -->
     <main class="container">
         
+        <!-- ข้อมูลรหัสประจำเครื่อง -->
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header-title">รหัสประจำเครื่อง (Device ID)</div>
+            <div class="input-group">
+                <label for="deviceIdInput">ไอดีเครื่อง:</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="deviceIdInput" value="Prototype_01" readonly style="background-color: var(--bg-color); color: var(--text-muted); font-weight: bold; cursor: not-allowed;">
+                </div>
+                
+            </div>
+        </div>
+
         <!-- แท็บสลับหน้าการตั้งค่า -->
         <div class="mode-selector">
             <button id="tabApBtn" class="btn-mode active">WiFi ของเครื่อง (Device AP)</button>
@@ -100,6 +115,11 @@
 
     </main>
 
-    <script src="/app.js"></script>
+    <script>
+        if (window.location.hostname !== "192.168.4.1" && !window.location.hostname.startsWith("192.168.")) {
+            document.write('<script src="/mqtt.min.js"><\\/script>');
+        }
+    </script>
+    <script type="module" src="/app.js?v=3.10"></script>
 </body>
 </html>
