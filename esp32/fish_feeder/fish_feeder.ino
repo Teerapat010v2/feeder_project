@@ -180,6 +180,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       ESP.restart();
     } else if (strcmp(action, "CLEAR_HISTORY") == 0) {
       historyCount = 0;
+      saveHistoryToSPIFFS();
       if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
           String historyTopic = "fishfeeder/" + deviceId + "/history";
           mqttClient.publish(historyTopic.c_str(), "[]", true);
@@ -357,6 +358,7 @@ void setup() {
   }
   Serial.println("✅ SPIFFS Mounted Successfully");
   loadSchedules();
+  loadHistoryFromSPIFFS(); // โหลดประวัติเก่า
   loadModeSettings(); // Load persisted mode
 
   preferences.begin("scale_config", true);
@@ -666,6 +668,7 @@ void stopFeeding() {
       for (int i = 1; i < MAX_HISTORY; i++) feedHistory[i-1] = feedHistory[i];
       feedHistory[MAX_HISTORY-1] = { String(timeStr), (int)dispensed, currentFeedMode };
   }
+  saveHistoryToSPIFFS();
   Serial.println("📝 บันทึกประวัติการให้อาหารลง Memory สำเร็จ");
   
   if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
@@ -897,6 +900,7 @@ void handleGetHistory() {
 void handleClearHistory() {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   historyCount = 0;
+  saveHistoryToSPIFFS();
   
   if (WiFi.status() == WL_CONNECTED && mqttClient.connected()) {
       String historyTopic = "fishfeeder/" + deviceId + "/history";
@@ -975,6 +979,45 @@ void loadSchedules() {
       String json = file.readString();
       file.close();
       updateLocalSchedulesFromJson(json);
+    }
+  }
+}
+
+void saveHistoryToSPIFFS() {
+  DynamicJsonDocument doc(2048);
+  JsonArray array = doc.to<JsonArray>();
+  for (int i = 0; i < historyCount; i++) {
+    JsonObject obj = array.createNestedObject();
+    obj["timestamp"] = feedHistory[i].timestamp;
+    obj["amount"] = feedHistory[i].amount;
+    obj["mode"] = feedHistory[i].mode;
+  }
+  File file = SPIFFS.open("/history.json", FILE_WRITE);
+  if (file) {
+    serializeJson(doc, file);
+    file.close();
+  }
+}
+
+void loadHistoryFromSPIFFS() {
+  if (SPIFFS.exists("/history.json")) {
+    File file = SPIFFS.open("/history.json", FILE_READ);
+    if (file) {
+      DynamicJsonDocument doc(2048);
+      DeserializationError error = deserializeJson(doc, file);
+      if (!error) {
+        historyCount = 0;
+        JsonArray array = doc.as<JsonArray>();
+        for (JsonObject obj : array) {
+          if (historyCount < MAX_HISTORY) {
+            feedHistory[historyCount].timestamp = obj["timestamp"].as<String>();
+            feedHistory[historyCount].amount = obj["amount"].as<int>();
+            feedHistory[historyCount].mode = obj["mode"].as<String>();
+            historyCount++;
+          }
+        }
+      }
+      file.close();
     }
   }
 }
