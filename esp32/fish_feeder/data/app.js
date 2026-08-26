@@ -212,6 +212,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
             updateModeUI(isManual, onlineStatus);
         }
+
+        if (!onlineStatus) {
+            document.body.classList.add("offline-mode");
+        } else {
+            document.body.classList.remove("offline-mode");
+        }
     }
 
     // --- โหมด Auto/Manual สลับปุ่มให้อาหาร ---

@@ -1208,3 +1208,17 @@ input:checked + .slider:before {
     box-shadow: 0 4px 12px rgba(34, 197, 94, 0.25);
 }
 .btn-green:hover { background: linear-gradient(135deg, #4ade80, #22c55e); transform: translateY(-1px); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
+
+/* เมื่อ offline ให้หน้าเว็บเป็นสีเทา */
+body.offline-mode {
+    filter: grayscale(100%);
+}
+
+/* ปิดการใช้งานปุ่ม, input และ card ที่ไม่ให้แก้ไข */
+body.offline-mode input:not(#startDateInput):not(#endDateInput),
+body.offline-mode button:not(#hamburgerBtn):not(#closeSidebarBtn):not(#printReportBtn):not(#filterBtn):not(#resetFilterBtn),
+body.offline-mode .toggle-switch,
+body.offline-mode select {
+    pointer-events: none !important;
+    opacity: 0.6;
+}
