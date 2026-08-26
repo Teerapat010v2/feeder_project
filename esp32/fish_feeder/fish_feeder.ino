@@ -148,6 +148,21 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       preferences.putInt("speed", currentMotorSpeed);
       preferences.end();
       publishMQTTStatus();
+
+      // ส่งประวัติล่าสุดเข้า MQTT ตอนเชื่อมต่อด้วย เผื่อไฟตก
+      DynamicJsonDocument histDoc(1024);
+      JsonArray array = histDoc.to<JsonArray>();
+      for (int i = historyCount - 1; i >= 0; i--) {
+        JsonObject obj = array.createNestedObject();
+        obj["timestamp"] = feedHistory[i].timestamp;
+        obj["amount"] = feedHistory[i].amount;
+        obj["mode"] = feedHistory[i].mode;
+      }
+      String histPayload;
+      serializeJson(histDoc, histPayload);
+      String historyTopic = "fishfeeder/" + deviceId + "/history";
+      mqttClient.publish(historyTopic.c_str(), histPayload.c_str(), true);
+
     } else if (strcmp(action, "SET_MODE") == 0) {
       forceManualMode = (strcmp(doc["mode"] | "AUTO", "MANUAL") == 0);
       saveModeSettings();
