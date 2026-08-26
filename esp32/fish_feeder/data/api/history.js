@@ -8,7 +8,6 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
         try {
             const limit = req.query.limit || 100;
-            // Ensure table exists
             await sql.query(`
                 CREATE TABLE IF NOT EXISTS "${DEVICE_ID}" (
                     id SERIAL PRIMARY KEY,
@@ -39,7 +38,7 @@ module.exports = async function handler(req, res) {
     
     if (req.method === 'POST') {
         try {
-            const { amount, mode } = req.body;
+            const { amount, mode, timestamp } = req.body;
             await sql.query(`
                 CREATE TABLE IF NOT EXISTS "${DEVICE_ID}" (
                     id SERIAL PRIMARY KEY,
@@ -49,10 +48,18 @@ module.exports = async function handler(req, res) {
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             `);
-            await sql.query(`
-                INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
-                VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-            `, [DEVICE_ID, amount || 10, mode || 'manual']);
+            
+            if(timestamp) {
+                await sql.query(`
+                    INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
+                    VALUES ($1, $2, $3, $4)
+                `, [DEVICE_ID, amount || 10, mode || 'manual', new Date(timestamp)]);
+            } else {
+                await sql.query(`
+                    INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
+                    VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                `, [DEVICE_ID, amount || 10, mode || 'manual']);
+            }
             return res.status(200).json({ success: true });
         } catch (error) {
             console.error(error);
@@ -65,7 +72,6 @@ module.exports = async function handler(req, res) {
             await sql.query(`DELETE FROM "${DEVICE_ID}"`);
             return res.status(200).json({ success: true });
         } catch (error) {
-            // Table might not exist yet
             return res.status(200).json({ success: true });
         }
     }
