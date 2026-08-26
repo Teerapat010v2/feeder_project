@@ -661,7 +661,7 @@ void triggerFeeding(int amountGrams, String mode) {
 // =================================================================
 void stopFeeding() {
   isFeeding = false;
-  digitalWrite(RELAY_PIN, RELAY_OFF); 
+  digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, 0); 
   Serial.println("🛑 หยุดการทำงานมอเตอร์แล้ว");
   
   // รอให้ตาชั่งนิ่งสักพัก
