@@ -1058,7 +1058,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const clearHistoryBtn = document.getElementById("clearHistoryBtn");
 
-    async function loadHistory() {
+    window.loadHistory = async function() {
         try {
             const response = await fetch("/api/history", {
                 headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
@@ -1122,7 +1122,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     });
                     if (response.ok) {
                         alert("✅ ล้างประวัติเรียบร้อย");
-                        loadHistory();
+                        window.loadHistory();
                     }
                 } else {
                     if (mqttClient && mqttClient.connected) {
@@ -1144,7 +1144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    loadHistory();
+    window.loadHistory();
 });
 
 // Add missing listeners for Schedule/Weight tabs and Print Report button
