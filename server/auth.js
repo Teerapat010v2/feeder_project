@@ -15,7 +15,6 @@ function isValid(deviceId, deviceCode) {
     }
 
     return (
-        deviceId === process.env.DEVICE_ID &&
         deviceCode === process.env.DEVICE_CODE
     );
 }

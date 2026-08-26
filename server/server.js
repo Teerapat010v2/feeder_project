@@ -97,8 +97,8 @@ io.on("connection", async (socket) => {
         success: true
     });
 
-    // ส่งข้อมูลล่าสุดเมื่อเปิดเว็บ
-    await mqttService.sendCurrentState(socket);
+    const deviceId = socket.handshake.auth?.deviceId || process.env.DEVICE_ID || "Prototype_01";
+    await mqttService.sendCurrentState(socket, deviceId);
 
     socket.on("disconnect", () => {
 

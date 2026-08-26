@@ -1,14 +1,9 @@
 require("dotenv").config();
-
 const mqtt = require("mqtt");
 const database = require("./database");
 const { calculateFoodStatus } = require("./foodStatus");
 
 let io = null;
-
-// ==========================
-// MQTT CONFIG
-// ==========================
 
 if (!process.env.MQTT_HOST || !process.env.MQTT_PORT) {
     console.warn("[MQTT] MQTT_HOST / MQTT_PORT ไม่ได้ถูกตั้งค่าใน .env — MQTT จะเชื่อมต่อไม่ได้");
@@ -20,390 +15,151 @@ const client = mqtt.connect("mqtts://97a545ab69f44dde939442a2b857bc3b.s1.eu.hive
     clientId: "vercel-serverless-" + Math.random().toString(16).substr(2, 8),
     reconnectPeriod: 5000,
     connectTimeout: 10000,
-    // ค่าเดิมเป็น false เสมอ (ปิดการตรวจ cert) ซึ่งเสี่ยงต่อ MITM
-    // ตั้ง MQTT_REJECT_UNAUTHORIZED=true ใน .env เมื่อ broker ใช้ cert ที่ถูกต้อง (เช่น HiveMQ Cloud)
     rejectUnauthorized: process.env.MQTT_REJECT_UNAUTHORIZED === "true"
 });
 
-// ==========================
-// TOPICS
-// ==========================
-
-const DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
-
-const TOPIC = {
-    COMMAND: `fishfeeder/${DEVICE_ID}/cmd/command`,   // Server -> Device
-    STATUS: `fishfeeder/${DEVICE_ID}/status`,         // Device -> Server
-    WEIGHT: `fishfeeder/${DEVICE_ID}/weight`,         // Device -> Server
-    ALERT: `fishfeeder/${DEVICE_ID}/alert`,           // Device -> Server
-    HISTORY: `fishfeeder/${DEVICE_ID}/history`,       // Device -> Server
-    SCHEDULE: `fishfeeder/${DEVICE_ID}/schedule`,     // Server -> Device
-    SCHEDULE_UPDATE: `fishfeeder/${DEVICE_ID}/schedule_update` // Device -> Server (Local UI)
-};
-
-// เดิม subscribe ทุก topic รวมถึง COMMAND/SCHEDULE ที่ตัวเอง publish เอง (ฟัง echo ตัวเองโดยเปล่าประโยชน์)
-// แก้เป็น subscribe เฉพาะ topic ที่ "อุปกรณ์" เป็นผู้ส่งเข้ามาเท่านั้น
+// Wildcard topics to listen to ALL devices
 const SUBSCRIBE_TOPICS = [
-    TOPIC.STATUS,
-    TOPIC.WEIGHT,
-    TOPIC.ALERT,
-    TOPIC.HISTORY,
-    TOPIC.SCHEDULE_UPDATE
+    `fishfeeder/+/status`,
+    `fishfeeder/+/weight`,
+    `fishfeeder/+/alert`,
+    `fishfeeder/+/history`,
+    `fishfeeder/+/schedule_update`
 ];
 
-// ==========================
-// START
-// ==========================
-
 function start(socketio){
-
     io = socketio;
-
     client.on("connect",()=>{
-
-        console.log("");
-
-        console.log("========================");
-
         console.log("MQTT Connected");
-
-        console.log("========================");
-
         SUBSCRIBE_TOPICS.forEach(topic=>{
-
             client.subscribe(topic,(err)=>{
-
-                if(err){
-
-                    console.log("Subscribe Error",topic);
-
-                }else{
-
-                    console.log("Subscribed :",topic);
-
-                }
-
+                if(err) console.log("Subscribe Error",topic);
+                else console.log("Subscribed :",topic);
             });
-
         });
-
     });
 
-    client.on("reconnect",()=>{
-
-        console.log("Reconnect MQTT...");
-
-    });
-
-    client.on("offline",()=>{
-
-        console.log("MQTT Offline");
-
-        // อุปกรณ์อาจไม่ online จริง แต่บอกได้แค่ว่า "server เชื่อม broker ไม่ได้"
-        // ควรพึ่ง MQTT Last-Will-Testament (LWT) จากฝั่ง ESP8266 เพื่อบอกสถานะ online จริง ๆ
-
-    });
-
-    client.on("close",()=>{
-
-        console.log("MQTT Closed");
-
-    });
-
-    client.on("error",(err)=>{
-
-        console.log(err.message);
-
-    });
-
-    client.on("message",onMessage);
-
+    client.on("reconnect",()=>console.log("Reconnect MQTT..."));
+    client.on("offline",()=>console.log("MQTT Offline"));
+    client.on("close",()=>console.log("MQTT Closed"));
+    client.on("error",(err)=>console.log(err.message));
+    client.on("message", onMessage);
 }
 
-// ==========================
-// RECEIVE MQTT (ฉบับปรับปรุง ดักจับสถานะ Offline เมื่อถอดสายไฟ)
-// ==========================
+// Helper to extract deviceId and action from topic
+// Example: fishfeeder/Prototype_02/history -> deviceId: Prototype_02, action: history
+function parseTopic(topic) {
+    const parts = topic.split("/");
+    if (parts.length >= 3 && parts[0] === "fishfeeder") {
+        return { deviceId: parts[1], action: parts[2] };
+    }
+    return null;
+}
 
 async function onMessage(topic, message) {
-
     try {
-
         const data = JSON.parse(message.toString());
-
+        const parsed = parseTopic(topic);
+        if (!parsed) return;
+        
+        const { deviceId, action } = parsed;
         console.log("MQTT >", topic, data);
 
-        switch (topic) {
-
-            case TOPIC.STATUS:
-
-                // ตรวจสอบว่าบอร์ดส่งสถานะหลุด (Last Will) มาหรือไม่
+        switch (action) {
+            case "status":
                 if (data.online === false) {
-
-                    await database.updateDevice({ online: false });
-
-                    if (io) {
-                        io.emit("status", { online: false, feeding: false });
-                    }
-                    console.log("[STATUS] Device went OFFLINE via Last Will.");
-
+                    await database.updateDevice(deviceId, { online: false });
+                    if (io) io.emit("status", { deviceId, online: false, feeding: false });
                 } else {
-
-                    await handleStatus(data);
-
+                    await handleStatus(deviceId, data);
                 }
-
-            break;
-
-            case TOPIC.WEIGHT:
-                await handleWeight(data);
-            break;
-
-            case TOPIC.ALERT:
-                await handleAlert(data);
-            break;
-
-            case TOPIC.HISTORY:
-                await handleHistory(data);
-            break;
-
-            case TOPIC.SCHEDULE_UPDATE:
-                await handleScheduleUpdate(data);
-            break;
-
+                break;
+            case "weight":
+                await handleWeight(deviceId, data);
+                break;
+            case "alert":
+                await handleAlert(deviceId, data);
+                break;
+            case "history":
+                await handleHistory(deviceId, data);
+                break;
+            case "schedule_update":
+                await handleScheduleUpdate(deviceId, data);
+                break;
         }
-
-    }
-
-    catch (err) {
+    } catch (err) {
         console.log("[MQTT] Invalid payload on", topic, "-", err.message);
     }
-
 }
-// ==========================
-// HANDLE STATUS
-// ==========================
 
-async function handleStatus(data) {
-
+async function handleStatus(deviceId, data) {
     try {
-
         const isOnline = data.online !== undefined ? data.online : true;
-
-        await database.updateDevice({
-            online: isOnline,
-            feeding: data.feeding || false,
-            lastSeen: new Date(),
-            firmware: data.firmware || "",
-            ip: data.ip || "",
-            wifi: data.wifi || 0
+        await database.updateDevice(deviceId, {
+            online: isOnline, feeding: data.feeding || false,
+            firmware: data.firmware || "", ip: data.ip || "", wifi: data.wifi || 0
         });
-
-        if (io) {
-            io.emit("status", {
-                online: isOnline,
-                feeding: data.feeding || false,
-                firmware: data.firmware,
-                ip: data.ip,
-                wifi: data.wifi
-            });
-        }
-
+        if (io) io.emit("status", { deviceId, online: isOnline, feeding: data.feeding || false, firmware: data.firmware, ip: data.ip, wifi: data.wifi });
     } catch (err) {
-
         console.log(err.message);
-
     }
-
 }
 
-// ==========================
-// HANDLE WEIGHT
-// ==========================
-// เดิม: ทุกครั้งที่ได้ค่าน้ำหนัก <= 500g จะสร้าง Alert ใหม่ทุกครั้ง (ถ้า ESP8266
-// ส่งค่าน้ำหนักทุก ๆ ไม่กี่วินาที จะเกิด Alert document สแปมเข้า Firestore รัว ๆ)
-// แก้ไข: ใช้ foodStatus.js (เดิมมีไฟล์นี้แต่ backend ไม่เคยเรียกใช้เลย) คำนวณ
-// ระดับสถานะ แล้วแจ้งเตือนเฉพาะตอน "ระดับเปลี่ยน" เท่านั้น (green -> yellow -> red)
-
-async function handleWeight(data) {
-
+async function handleWeight(deviceId, data) {
     try {
+        await database.updateWeight(deviceId, data.weight);
+        if (io) io.emit("weight", { deviceId, weight: data.weight });
 
-        await database.updateWeight(data.weight);
-
-        if (io) {
-
-            io.emit("weight", {
-
-                weight: data.weight
-
-            });
-
-        }
-
-        const device = await database.getDevice();
+        const device = await database.getDevice(deviceId);
         const dailyUsage = device?.dailyUsage || 100;
         const status = calculateFoodStatus(data.weight, dailyUsage);
         const previousLevel = device?.foodLevel;
 
         if (status.level !== "green" && status.level !== previousLevel) {
-
             const alert = {
-
-                message: status.level === "red"
-                    ? `อาหารวิกฤต เหลืออาหารใช้ได้อีกประมาณ ${status.daysRemaining} วัน`
-                    : `อาหารใกล้หมด เหลืออาหารใช้ได้อีกประมาณ ${status.daysRemaining} วัน`,
-
+                message: status.level === "red" ? \`อาหารวิกฤต เหลืออาหารใช้ได้อีกประมาณ \${status.daysRemaining} วัน\` : \`อาหารใกล้หมด เหลืออาหารใช้ได้อีกประมาณ \${status.daysRemaining} วัน\`,
                 level: status.level === "red" ? "danger" : "warning"
-
             };
-
-            await database.saveAlert(alert);
-
-            if (io) {
-
-                io.emit("alert", alert);
-
-            }
-
+            await database.saveAlert(deviceId, alert);
+            if (io) io.emit("alert", { deviceId, ...alert });
         }
-
-        // เก็บระดับล่าสุดไว้เทียบรอบถัดไป (กันแจ้งเตือนซ้ำ)
-        await database.updateDevice({ foodLevel: status.level });
-
+        await database.updateDevice(deviceId, { foodLevel: status.level });
     } catch (err) {
-
         console.log(err.message);
-
     }
-
 }
 
-// ==========================
-// HANDLE ALERT
-// ==========================
-
-async function handleAlert(data) {
-
+async function handleAlert(deviceId, data) {
     try {
-
-        await database.saveAlert(data);
-
-        if (io) {
-
-            io.emit("alert", data);
-
-        }
-
+        await database.saveAlert(deviceId, data);
+        if (io) io.emit("alert", { deviceId, ...data });
     } catch (err) {
-
         console.log(err.message);
-
     }
-
 }
 
-// ==========================
-// HANDLE HISTORY
-// ==========================
-
-async function handleHistory(data) {
-
+async function handleHistory(deviceId, data) {
     try {
         let latestData = data;
-        
-        // ESP32 sends the array with the latest record at index 0
         if (Array.isArray(data)) {
             if (data.length === 0) return;
             latestData = data[0];
         }
-
-        const history = {
-
-            amount: latestData.amount || 0,
-
-            mode: latestData.mode || "manual"
-
-        };
-
-        await database.saveHistory(history);
-
-        const list = await database.getHistory();
-
-        if (io) {
-
-            io.emit("history", list);
-
-        }
-
+        const history = { amount: latestData.amount || 0, mode: latestData.mode || "manual" };
+        await database.saveHistory(deviceId, history);
+        const list = await database.getHistory(deviceId);
+        if (io) io.emit("history", { deviceId, history: list });
     } catch (err) {
-
         console.log(err.message);
-
     }
-
-}
-// ==========================
-// FEED COMMAND
-// ==========================
-
-async function feed(grams = 30) {
-    await publish(TOPIC.COMMAND, {
-        action: "FEED",
-        amount: Number(grams),
-        mode: "manual"
-    });
 }
 
-// ==========================
-// STOP COMMAND
-// ==========================
-
-async function stop() {
-    await publish(TOPIC.COMMAND, {
-        action: "EMERGENCY_STOP"
-    });
-}
-
-// ==========================
-// SAVE SCHEDULE
-// ==========================
-
-async function schedule(schedules) {
-
-    try {
-
-        await database.saveSchedules(schedules);
-
-        await publish(TOPIC.SCHEDULE, {
-            schedules
-        }, true);
-
-        if (io) {
-
-            io.emit("schedule", schedules);
-
-        }
-
-    } catch (err) {
-
-        console.log(err.message);
-
-    }
-
-}
-
-// ==========================
-// HANDLE SCHEDULE UPDATE (FROM LOCAL)
-// ==========================
-
-async function handleScheduleUpdate(data) {
+async function handleScheduleUpdate(deviceId, data) {
     try {
         const schedulesArray = data.schedules || data;
         if (Array.isArray(schedulesArray)) {
-            await database.saveSchedules(schedulesArray);
-            if (io) {
-                io.emit("schedule", schedulesArray);
-            }
+            await database.saveSchedules(deviceId, schedulesArray);
+            if (io) io.emit("schedule", { deviceId, schedules: schedulesArray });
             console.log("[MQTT] 🔄 Schedule updated from Local Mode:", schedulesArray.length, "items");
         }
     } catch (err) {
@@ -411,132 +167,74 @@ async function handleScheduleUpdate(data) {
     }
 }
 
-// ==========================
-// SEND CURRENT STATE
-// ==========================
+// Helper to get deviceId from env if not provided (for backward compatibility on some API routes)
+const DEFAULT_DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
 
-async function sendCurrentState(socket) {
+async function feed(grams = 30, deviceId = DEFAULT_DEVICE_ID) {
+    await publish(\`fishfeeder/\${deviceId}/cmd/command\`, { action: "FEED", amount: Number(grams), mode: "manual" });
+}
 
+async function stop(deviceId = DEFAULT_DEVICE_ID) {
+    await publish(\`fishfeeder/\${deviceId}/cmd/command\`, { action: "EMERGENCY_STOP" });
+}
+
+async function schedule(schedules, deviceId = DEFAULT_DEVICE_ID) {
     try {
+        await database.saveSchedules(deviceId, schedules);
+        await publish(\`fishfeeder/\${deviceId}/schedule\`, { schedules }, true);
+        if (io) io.emit("schedule", { deviceId, schedules });
+    } catch (err) {
+        console.log(err.message);
+    }
+}
 
-        const device = await database.getDevice();
-
+async function sendCurrentState(socket, deviceId = DEFAULT_DEVICE_ID) {
+    try {
+        const device = await database.getDevice(deviceId);
         if (device) {
-
             socket.emit("status", device);
-
-            socket.emit("weight", {
-
-                weight: device.weight || 0
-
-            });
-
+            socket.emit("weight", { weight: device.weight || 0 });
         }
-
-        const history = await database.getHistory();
-
+        const history = await database.getHistory(deviceId);
         socket.emit("history", history);
-
-        const alerts = await database.getAlerts();
-
+        const alerts = await database.getAlerts(deviceId);
         socket.emit("alerts", alerts);
-
     } catch (err) {
-
         console.log(err.message);
-
     }
-
 }
 
-// ==========================
-// REFRESH DASHBOARD
-// ==========================
-
-async function refreshDashboard() {
-
+async function refreshDashboard(deviceId = DEFAULT_DEVICE_ID) {
     if (!io) return;
-
     try {
-
-        const device = await database.getDevice();
-
+        const device = await database.getDevice(deviceId);
         if (device) {
-
             io.emit("status", device);
-
-            io.emit("weight", {
-
-                weight: device.weight || 0
-
-            });
-
+            io.emit("weight", { weight: device.weight || 0 });
         }
-
-        const history = await database.getHistory();
-
+        const history = await database.getHistory(deviceId);
         io.emit("history", history);
-
-        const alerts = await database.getAlerts();
-
+        const alerts = await database.getAlerts(deviceId);
         io.emit("alerts", alerts);
-
     } catch (err) {
-
         console.log(err.message);
-
     }
-
 }
-
-// ==========================
-// MQTT PUBLISH
-// ==========================
 
 function publish(topic, payload, retain = false) {
     return new Promise((resolve, reject) => {
-        client.publish(
-            topic,
-            JSON.stringify(payload),
-            {
-                qos: 1,
-                retain: retain
-            },
-            (err) => {
-                if (err) {
-                    console.log("Publish Error :", err.message);
-                    reject(err);
-                } else {
-                    console.log("Publish >", topic);
-                    resolve();
-                }
+        client.publish(topic, JSON.stringify(payload), { qos: 1, retain: retain }, (err) => {
+            if (err) {
+                console.log("Publish Error :", err.message);
+                reject(err);
+            } else {
+                console.log("Publish >", topic);
+                resolve();
             }
-        );
+        });
     });
 }
 
-// END PUBLISH
-
-// ==========================
-// EXPORT
-// ==========================
-
 module.exports = {
-
-    start,
-
-    feed,
-
-    stop,
-
-    schedule,
-
-    sendCurrentState,
-
-    refreshDashboard,
-
-    publish,
-
-    TOPIC
-
+    start, feed, stop, schedule, sendCurrentState, refreshDashboard, publish
 };
