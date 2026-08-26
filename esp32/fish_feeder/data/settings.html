@@ -115,7 +115,11 @@
 
     </main>
 
-    <script src="/mqtt.min.js"></script>
+    <script>
+        if (window.location.hostname !== "192.168.4.1" && !window.location.hostname.startsWith("192.168.")) {
+            document.write('<script src="/mqtt.min.js"><\\/script>');
+        }
+    </script>
     <script type="module" src="/app.js?v=3.10"></script>
 </body>
 </html>
