@@ -360,7 +360,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                                 const t2 = new Date(item.timestamp).getTime();
                                                 return Math.abs(t1 - t2) < 60000;
                                             });
-                                            if(!exists && item.amount > 0) {
+                                            if(!exists) {
                                                 console.log("Syncing missing history to DB:", item);
                                                 await fetch('/api/history', {
                                                     method: 'POST',
