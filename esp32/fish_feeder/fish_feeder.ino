@@ -9,6 +9,8 @@
 #include "HX711.h"
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <time.h>
 #include "secrets.h"
 #include <ThreeWire.h>
@@ -668,6 +670,37 @@ void triggerFeeding(int amountGrams, String mode) {
 // =================================================================
 // 📌 11. ฟังก์ชันสั่งปิดรีเลย์
 // =================================================================
+
+void sendHistoryToVercel(int amountGrams, String mode) {
+  if(WiFi.status() == WL_CONNECTED) {
+    WiFiClientSecure *client = new WiFiClientSecure;
+    if(client) {
+      client->setInsecure();
+      HTTPClient https;
+      String url = "https://feeder-project.vercel.app/api/history";
+      if (https.begin(*client, url)) {
+        https.addHeader("Content-Type", "application/json");
+        https.addHeader("x-device-id", deviceId);
+        
+        StaticJsonDocument<200> doc;
+        doc["amount"] = amountGrams;
+        doc["mode"] = mode;
+        String payload;
+        serializeJson(doc, payload);
+        
+        int httpCode = https.POST(payload);
+        if(httpCode > 0) {
+          Serial.printf("✅ ส่งประวัติขึ้น Vercel สำเร็จ: %d\n", httpCode);
+        } else {
+          Serial.printf("❌ ส่งประวัติขึ้น Vercel ล้มเหลว: %s\n", https.errorToString(httpCode).c_str());
+        }
+        https.end();
+      }
+      delete client;
+    }
+  }
+}
+
 void stopFeeding() {
   isFeeding = false;
   digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, 0); 
