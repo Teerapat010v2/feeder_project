@@ -519,7 +519,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function loadDashboardTimes() {
-        if (!window.isLocalMode) return; // Online mode uses MQTT events
         try {
             // ดึงเวลาให้อาหารล่าสุด
             const historyRes = await fetch("/api/history", {
@@ -947,10 +946,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // โหลดข้อมูลเริ่มต้น
     async function loadSchedules() {
         if (isEditing) return; // อย่าอัปเดตทับถ้ากำลังแก้ไขอยู่
-        if (!window.isLocalMode) {
-            renderSchedules(); // Render UI ว่างๆ รอรับข้อมูลจาก MQTT
-            return;
-        }
+        // Removed window.isLocalMode early return to allow API fetch in online mode too
         try {
             const response = await fetch("/api/schedule?t=" + new Date().getTime());
             if (response.ok) {
@@ -1034,6 +1030,7 @@ document.addEventListener("DOMContentLoaded", () => {
         renderSchedules();
     });
 
+    loadSchedules();
     if (window.isLocalMode) {
         // ฟัง event จากหน้า index เมื่อ schedule_count เปลี่ยน
         window.addEventListener('scheduleUpdated', () => {
@@ -1041,7 +1038,6 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         // poll schedule ทุก 5 วินาที ในโหมด Local เพื่อรับการเปลี่ยนแปลงจาก Online
         setInterval(loadSchedules, 5000);
-        loadSchedules();
     }
 });
 
@@ -1141,9 +1137,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    if (window.isLocalMode) {
-        loadHistory();
-    }
+    loadHistory();
 });
 
 // Add missing listeners for Schedule/Weight tabs and Print Report button
