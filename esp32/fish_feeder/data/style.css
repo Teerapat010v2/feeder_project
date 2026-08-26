@@ -1209,8 +1209,8 @@ input:checked + .slider:before {
 }
 .btn-green:hover { background: linear-gradient(135deg, #4ade80, #22c55e); transform: translateY(-1px); box-shadow: 0 6px 14px rgba(34, 197, 94, 0.35); }
 
-/* เมื่อ offline ให้หน้าเว็บเป็นสีเทาเฉพาะส่วนเนื้อหาหลัก */
-body.offline-mode main.container {
+/* เมื่อ offline ให้หน้าเว็บเป็นสีเทาเฉพาะส่วนเนื้อหาหลัก (ยกเว้นหน้าประวัติ) */
+body.offline-mode:not(.history-page) main.container {
     filter: grayscale(100%);
 }
 
