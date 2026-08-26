@@ -355,7 +355,7 @@ void setup() {
       Rtc.SetIsWriteProtected(false);
   }
 
-  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 5000, 8); ledcAttachPin(MOTOR_ENA, 0);
+  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 1000, 8); ledcAttachPin(MOTOR_ENA, 0);
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
@@ -643,7 +643,15 @@ void triggerFeeding(int amountGrams, String mode) {
   weightBeforeFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
   if (weightBeforeFeed < 0) weightBeforeFeed = 0.0;
 
-  digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, map(currentMotorSpeed, 0, 100, 0, 255));
+    digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW); 
+  int pwmValue = map(currentMotorSpeed, 0, 100, 0, 255);
+  ledcWrite(0, pwmValue);
+  Serial.print("▶️ มอเตอร์เริ่มหมุนด้วยความเร็ว: ");
+  Serial.print(currentMotorSpeed);
+  Serial.print("% (PWM: ");
+  Serial.print(pwmValue);
+  Serial.println(")");
+
   
   Serial.print("🐟 กำลังให้อาหาร: ");
   Serial.print(amountGrams);
