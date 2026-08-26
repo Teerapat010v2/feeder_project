@@ -533,6 +533,7 @@ void publishMQTTStatus() {
     doc["scale_status"] = scaleReady ? "NORMAL" : "ERROR";
     doc["mode"] = currentMode;
   doc["motor_speed"] = currentMotorSpeed;
+  doc["motor_speed"] = currentMotorSpeed;
     doc["deviceId"] = deviceId;
     
     String payload;
@@ -739,7 +740,8 @@ void handleApiStatus() {
   doc["status"]         = isFeeding ? "FEEDING" : "IDLE";
   doc["motor_status"]   = isFeeding ? "FEEDING" : "READY";
   doc["scale_status"]   = scaleReady ? "NORMAL" : "ERROR";
-  doc["mode"]           = currentMode;
+  doc["mode"] = currentMode;
+  doc["motor_speed"] = currentMotorSpeed;
   doc["schedule_count"] = scheduleCount;
 
   String response;
