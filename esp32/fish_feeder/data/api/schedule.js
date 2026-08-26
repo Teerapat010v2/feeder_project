@@ -6,49 +6,13 @@ module.exports = async function handler(req, res) {
     const DEVICE_ID = decodeURIComponent(rawDeviceId);
 
     if (req.method === 'GET') {
-        try {
-            const { rows } = await sql`
-                SELECT id, time, amount, enable, created_at 
-                FROM schedules 
-                WHERE device_id = ${DEVICE_ID} 
-                ORDER BY time ASC
-            `;
-            const schedules = rows.map(row => ({
-                id: String(row.id),
-                time: row.time,
-                amount: Number(row.amount),
-                enable: row.enable,
-                createdAt: row.created_at
-            }));
-            return res.status(200).json(schedules);
-        } catch (error) {
-            console.error(error);
-            return res.status(500).json({ error: 'Database error' });
-        }
+        // Table deleted by user request, schedules are handled by ESP32 memory via MQTT
+        return res.status(200).json([]);
     } 
     
     if (req.method === 'POST') {
-        try {
-            const { schedules } = req.body;
-            if (!Array.isArray(schedules)) {
-                return res.status(400).json({ success: false, message: 'Invalid format' });
-            }
-
-            // Delete old schedules
-            await sql`DELETE FROM schedules WHERE device_id = ${DEVICE_ID}`;
-
-            // Insert new ones
-            for (const item of schedules) {
-                await sql`
-                    INSERT INTO schedules (device_id, time, amount, enable, created_at)
-                    VALUES (${DEVICE_ID}, ${item.time}, ${item.amount ?? 10}, ${item.enable ?? true}, CURRENT_TIMESTAMP)
-                `;
-            }
-            return res.status(200).json({ success: true });
-        } catch (error) {
-            console.error(error);
-            return res.status(500).json({ error: 'Database error' });
-        }
+        // Table deleted by user request, schedules are handled by ESP32 memory via MQTT
+        return res.status(200).json({ success: true });
     }
 
     res.setHeader('Allow', ['GET', 'POST']);

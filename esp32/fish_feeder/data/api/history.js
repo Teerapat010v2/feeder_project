@@ -8,13 +8,22 @@ module.exports = async function handler(req, res) {
     if (req.method === 'GET') {
         try {
             const limit = req.query.limit || 100;
-            const { rows } = await sql`
+            // Ensure table exists
+            await sql.query(`
+                CREATE TABLE IF NOT EXISTS "${DEVICE_ID}" (
+                    id SERIAL PRIMARY KEY,
+                    device_id VARCHAR(50) NOT NULL,
+                    amount NUMERIC NOT NULL,
+                    mode VARCHAR(20) DEFAULT 'manual',
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            const { rows } = await sql.query(`
                 SELECT id, amount, mode, timestamp 
-                FROM feed_history 
-                WHERE device_id = ${DEVICE_ID} 
+                FROM "${DEVICE_ID}"
                 ORDER BY timestamp DESC 
-                LIMIT ${limit}
-            `;
+                LIMIT $1
+            `, [limit]);
             const history = rows.map(row => ({
                 id: String(row.id),
                 amount: Number(row.amount),
@@ -31,10 +40,19 @@ module.exports = async function handler(req, res) {
     if (req.method === 'POST') {
         try {
             const { amount, mode } = req.body;
-            await sql`
-                INSERT INTO feed_history (device_id, amount, mode, timestamp)
-                VALUES (${DEVICE_ID}, ${amount || 10}, ${mode || 'manual'}, CURRENT_TIMESTAMP)
-            `;
+            await sql.query(`
+                CREATE TABLE IF NOT EXISTS "${DEVICE_ID}" (
+                    id SERIAL PRIMARY KEY,
+                    device_id VARCHAR(50) NOT NULL,
+                    amount NUMERIC NOT NULL,
+                    mode VARCHAR(20) DEFAULT 'manual',
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+            await sql.query(`
+                INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+            `, [DEVICE_ID, amount || 10, mode || 'manual']);
             return res.status(200).json({ success: true });
         } catch (error) {
             console.error(error);
@@ -44,11 +62,11 @@ module.exports = async function handler(req, res) {
 
     if (req.method === 'DELETE') {
         try {
-            await sql`DELETE FROM feed_history WHERE device_id = ${DEVICE_ID}`;
+            await sql.query(`DELETE FROM "${DEVICE_ID}"`);
             return res.status(200).json({ success: true });
         } catch (error) {
-            console.error(error);
-            return res.status(500).json({ error: 'Database error' });
+            // Table might not exist yet
+            return res.status(200).json({ success: true });
         }
     }
 
