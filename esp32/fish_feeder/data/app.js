@@ -292,6 +292,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // --- เริ่มต้นระบบตามโหมด ---
     if (!window.isLocalMode && typeof mqtt !== 'undefined') {
         // [ONLINE MODE] ใช้ MQTT
+        if (tankWeightText) {
+            updateDashboardUI(0, false);
+        }
         console.log("🌐 กำลังเชื่อมต่อ Online Mode (HiveMQ)...");
         mqttClient = mqtt.connect(MQTT_BROKER, MQTT_OPTIONS);
 
