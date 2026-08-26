@@ -19,7 +19,9 @@
 // =================================================================
 #define HX711_DT   16   
 #define HX711_SCK  17   
-#define RELAY_PIN  18   
+#define MOTOR_ENA  18
+#define MOTOR_IN1  5
+#define MOTOR_IN2  13   
 
 #define LED_R      19   
 #define LED_G      23   
@@ -30,8 +32,8 @@
 // =================================================================
 #define CALIBRATION_FACTOR 220.4  
 
-#define RELAY_ON   LOW
-#define RELAY_OFF  HIGH
+
+int currentMotorSpeed = 100;
 
 // =================================================================
 // 📌 3. ประกาศตัวแปรและออบเจ็กต์ของระบบ (SYSTEM OBJECTS)
@@ -93,6 +95,7 @@ void handleSaveApWifi();
 void handleResetWifi();
 void handleScanWifi();
 void handleGetHistory();
+void handleSetSpeed();
 void handleClearHistory();
 void handleDummyEmptyArray();
 void handleDummySuccess();
@@ -135,6 +138,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       triggerFeeding(amount, mode);
     } else if (strcmp(action, "EMERGENCY_STOP") == 0) {
       stopFeeding();
+    } else if (strcmp(action, "SET_SPEED") == 0) {
+      currentMotorSpeed = doc["speed"] | 100;
+      if(currentMotorSpeed < 0) currentMotorSpeed = 0;
+      if(currentMotorSpeed > 100) currentMotorSpeed = 100;
+      preferences.begin("motor_config", false);
+      preferences.putInt("speed", currentMotorSpeed);
+      preferences.end();
+      publishMQTTStatus();
     } else if (strcmp(action, "SET_MODE") == 0) {
       forceManualMode = (strcmp(doc["mode"] | "AUTO", "MANUAL") == 0);
       saveModeSettings();
@@ -344,12 +355,12 @@ void setup() {
       Rtc.SetIsWriteProtected(false);
   }
 
-  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 5000, 8); ledcAttachPin(MOTOR_ENA, 0);
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
 
-  digitalWrite(RELAY_PIN, RELAY_OFF);
+  digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, 0);
   setRGB(false, false, true); 
 
   if (!SPIFFS.begin(true)) {
@@ -364,6 +375,11 @@ void setup() {
   preferences.begin("scale_config", true);
   float calib = preferences.getFloat("calib_factor", 220.4);
   preferences.end();
+  
+  preferences.begin("motor_config", true);
+  currentMotorSpeed = preferences.getInt("speed", 100);
+  preferences.end();
+  
   scale.begin(HX711_DT, HX711_SCK);
   scale.set_scale(calib);
   scale.tare(); 
@@ -456,6 +472,7 @@ void setup() {
   server.on("/local-calib", HTTP_GET, handleLocalCalibrate);
   server.on("/api/stop", handleLocalStop);
   server.on("/api/set-mode", HTTP_GET, handleSetMode);
+  server.on("/api/set-speed", HTTP_GET, handleSetSpeed);
   server.on("/api/set-time", HTTP_POST, handleSetTime);
   
   // เส้นทางหน้า Settings และ Wi-Fi
@@ -508,12 +525,14 @@ void publishMQTTStatus() {
     
     StaticJsonDocument<256> doc;
     doc["online"] = true;
+    doc["motor_speed"] = currentMotorSpeed;
     doc["weight"] = weight;
     doc["current_weight"] = weight;
     doc["status"] = isFeeding ? "FEEDING" : "IDLE";
     doc["motor_status"] = isFeeding ? "FEEDING" : "READY";
     doc["scale_status"] = scaleReady ? "NORMAL" : "ERROR";
     doc["mode"] = currentMode;
+  doc["motor_speed"] = currentMotorSpeed;
     doc["deviceId"] = deviceId;
     
     String payload;
@@ -624,7 +643,7 @@ void triggerFeeding(int amountGrams, String mode) {
   weightBeforeFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
   if (weightBeforeFeed < 0) weightBeforeFeed = 0.0;
 
-  digitalWrite(RELAY_PIN, RELAY_ON);
+  digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, map(currentMotorSpeed, 0, 100, 0, 255));
   
   Serial.print("🐟 กำลังให้อาหาร: ");
   Serial.print(amountGrams);
@@ -1086,7 +1105,7 @@ void testMotorSerial() {
     }
     else if (cmd == "2") {
       Serial.println("\n⚡ [TEST MODE] เปิดรีเลย์ค้าง (ทดสอบขั้วไฟ)");
-      digitalWrite(RELAY_PIN, !digitalRead(RELAY_PIN)); 
+      /* L298N test */ 
     }
     else if (cmd.equalsIgnoreCase("reset")) {
       Serial.println("\n⚠️ [COMMAND] กำลังรีเซ็ตการตั้งค่า Wi-Fi ทั้งหมด...");

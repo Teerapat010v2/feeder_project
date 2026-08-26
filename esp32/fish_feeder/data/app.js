@@ -33,6 +33,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const stopBtn = document.getElementById("stopBtn");
     const feedAmount = document.getElementById("feedAmount");
     const modeToggle = document.getElementById("modeToggle");
+    const motorSpeedSlider = document.getElementById("motorSpeedSlider");
+    const motorSpeedValueText = document.getElementById("motorSpeedValueText");
+    const saveMotorSpeedBtn = document.getElementById("saveMotorSpeedBtn");
 
     const MAX_CAPACITY_GRAMS = 5000;
     let DAILY_USAGE_GRAMS = 20; // Default fallback
@@ -121,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
         let weight = 0;
         let mode = "MANUAL";
         let motor = "READY";
+        let motorSpeed = 100;
         let scaleStat = "NORMAL";
         let onlineStatus = isOnline;
         
