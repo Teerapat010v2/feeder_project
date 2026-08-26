@@ -327,8 +327,8 @@ void setup() {
   Serial.begin(115200);
   delay(500);
 
-  // กำหนดชื่อบอร์ดเป็น Table ตามที่ผู้ใช้ระบุ
-  deviceId = "Table";
+  // กำหนดชื่อบอร์ดเป็น Prototype_01
+  deviceId = "Prototype_01";
   
   Serial.println("\n--- [ESP32 Smart Fish Feeder Starting] ---");
   Serial.print("Device ID: ");
