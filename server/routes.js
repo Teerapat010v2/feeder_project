@@ -67,7 +67,7 @@ router.post("/feed", async (req, res) => {
         const deviceId = getDeviceId(req);
         const grams = Number(req.body.grams);
         if (isNaN(grams) || grams <= 0) return res.status(400).json({ success: false, message: "Invalid grams value" });
-        if (grams > MAX_FEED_GRAMS) return res.status(400).json({ success: false, message: \`Grams เกินขีดจำกัด (สูงสุด \${MAX_FEED_GRAMS} กรัมต่อครั้ง)\` });
+        if (grams > MAX_FEED_GRAMS) return res.status(400).json({ success: false, message: `Grams เกินขีดจำกัด (สูงสุด ${MAX_FEED_GRAMS} กรัมต่อครั้ง)` });
         
         await mqtt.feed(grams, deviceId);
         res.json({ success: true, message: "Feed command sent." });
@@ -105,14 +105,14 @@ router.post("/schedule", async (req, res) => {
         const deviceId = getDeviceId(req);
         const schedules = req.body.schedules;
         if (!Array.isArray(schedules)) return res.status(400).json({ success: false, message: "Schedule must be an array." });
-        if (schedules.length > MAX_SCHEDULE_ROUNDS) return res.status(400).json({ success: false, message: \`ตั้งได้สูงสุด \${MAX_SCHEDULE_ROUNDS} รอบ/วัน\` });
+        if (schedules.length > MAX_SCHEDULE_ROUNDS) return res.status(400).json({ success: false, message: `ตั้งได้สูงสุด ${MAX_SCHEDULE_ROUNDS} รอบ/วัน` });
         
         for (const item of schedules) {
             if (!item || typeof item.time !== "string" || !TIME_REGEX.test(item.time)) {
-                return res.status(400).json({ success: false, message: \`รูปแบบเวลาไม่ถูกต้อง (ต้องเป็น HH:mm): \${item?.time}\` });
+                return res.status(400).json({ success: false, message: `รูปแบบเวลาไม่ถูกต้อง (ต้องเป็น HH:mm): ${item?.time}` });
             }
             if (item.amount !== undefined && (isNaN(Number(item.amount)) || Number(item.amount) <= 0 || Number(item.amount) > MAX_FEED_GRAMS)) {
-                return res.status(400).json({ success: false, message: \`ปริมาณอาหารไม่ถูกต้อง (1-\${MAX_FEED_GRAMS} กรัม): \${item?.amount}\` });
+                return res.status(400).json({ success: false, message: `ปริมาณอาหารไม่ถูกต้อง (1-${MAX_FEED_GRAMS} กรัม): ${item?.amount}` });
             }
         }
         await mqtt.schedule(schedules, deviceId);

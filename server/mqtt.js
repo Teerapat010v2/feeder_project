@@ -117,7 +117,7 @@ async function handleWeight(deviceId, data) {
 
         if (status.level !== "green" && status.level !== previousLevel) {
             const alert = {
-                message: status.level === "red" ? \`อาหารวิกฤต เหลืออาหารใช้ได้อีกประมาณ \${status.daysRemaining} วัน\` : \`อาหารใกล้หมด เหลืออาหารใช้ได้อีกประมาณ \${status.daysRemaining} วัน\`,
+                message: status.level === "red" ? `อาหารวิกฤต เหลืออาหารใช้ได้อีกประมาณ ${status.daysRemaining} วัน` : `อาหารใกล้หมด เหลืออาหารใช้ได้อีกประมาณ ${status.daysRemaining} วัน`,
                 level: status.level === "red" ? "danger" : "warning"
             };
             await database.saveAlert(deviceId, alert);
@@ -171,17 +171,17 @@ async function handleScheduleUpdate(deviceId, data) {
 const DEFAULT_DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
 
 async function feed(grams = 30, deviceId = DEFAULT_DEVICE_ID) {
-    await publish(\`fishfeeder/\${deviceId}/cmd/command\`, { action: "FEED", amount: Number(grams), mode: "manual" });
+    await publish(`fishfeeder/${deviceId}/cmd/command`, { action: "FEED", amount: Number(grams), mode: "manual" });
 }
 
 async function stop(deviceId = DEFAULT_DEVICE_ID) {
-    await publish(\`fishfeeder/\${deviceId}/cmd/command\`, { action: "EMERGENCY_STOP" });
+    await publish(`fishfeeder/${deviceId}/cmd/command`, { action: "EMERGENCY_STOP" });
 }
 
 async function schedule(schedules, deviceId = DEFAULT_DEVICE_ID) {
     try {
         await database.saveSchedules(deviceId, schedules);
-        await publish(\`fishfeeder/\${deviceId}/schedule\`, { schedules }, true);
+        await publish(`fishfeeder/${deviceId}/schedule`, { schedules }, true);
         if (io) io.emit("schedule", { deviceId, schedules });
     } catch (err) {
         console.log(err.message);
