@@ -2,108 +2,78 @@ const { sql } = require("@vercel/postgres");
 
 const DEVICE_ID = process.env.DEVICE_ID || "Prototype_01";
 
-// =======================================
-// DEVICE
-// =======================================
+// Cache to prevent calling CREATE TABLE on every insert
+let tableCreated = false;
+
+async function ensureTableExists() {
+    if (tableCreated) return;
+    try {
+        await sql.query(`
+            CREATE TABLE IF NOT EXISTS "${DEVICE_ID}" (
+                id SERIAL PRIMARY KEY,
+                device_id VARCHAR(50) NOT NULL,
+                amount NUMERIC NOT NULL,
+                mode VARCHAR(20) DEFAULT 'manual',
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        tableCreated = true;
+    } catch (err) {
+        console.error("Failed to create table:", err);
+    }
+}
+
+// Memory fallback for state, alerts, schedules
+let deviceState = {
+    id: DEVICE_ID,
+    online: false,
+    feeding: false,
+    weight: 0,
+    foodLevel: 'green',
+    dailyUsage: 100,
+    firmware: "",
+    ip: "",
+    wifi: 0,
+    lastSeen: new Date(),
+    feedAmount: 10
+};
+let memoryAlerts = [];
+let memorySchedules = [];
 
 async function updateDevice(data) {
-    try {
-        const device = await getDevice();
-        if (!device) {
-            await sql`
-                INSERT INTO device_state (device_id, online, feeding, weight, food_level, daily_usage, firmware, ip, wifi, last_seen, feed_amount)
-                VALUES (${DEVICE_ID}, ${data.online ?? false}, ${data.feeding ?? false}, ${data.weight ?? 0}, ${data.foodLevel ?? 'green'}, ${data.dailyUsage ?? 100}, ${data.firmware ?? null}, ${data.ip ?? null}, ${data.wifi ?? 0}, CURRENT_TIMESTAMP, ${data.feedAmount ?? 10})
-            `;
-        } else {
-            // Update only provided fields
-            const setClauses = [];
-            if (data.online !== undefined) setClauses.push(`online = ${data.online}`);
-            if (data.feeding !== undefined) setClauses.push(`feeding = ${data.feeding}`);
-            if (data.weight !== undefined) setClauses.push(`weight = ${data.weight}`);
-            if (data.foodLevel !== undefined) setClauses.push(`food_level = '${data.foodLevel}'`);
-            if (data.dailyUsage !== undefined) setClauses.push(`daily_usage = ${data.dailyUsage}`);
-            if (data.firmware !== undefined) setClauses.push(`firmware = '${data.firmware}'`);
-            if (data.ip !== undefined) setClauses.push(`ip = '${data.ip}'`);
-            if (data.wifi !== undefined) setClauses.push(`wifi = ${data.wifi}`);
-            if (data.feedAmount !== undefined) setClauses.push(`feed_amount = ${data.feedAmount}`);
-            
-            if (setClauses.length > 0) {
-                // Direct interpolation is unsafe for generic usage but safe here since we control the fields
-                await sql.query(`UPDATE device_state SET ${setClauses.join(', ')}, last_seen = CURRENT_TIMESTAMP WHERE device_id = $1`, [DEVICE_ID]);
-            } else {
-                await sql`UPDATE device_state SET last_seen = CURRENT_TIMESTAMP WHERE device_id = ${DEVICE_ID}`;
-            }
-        }
-    } catch (err) {
-        console.error("DB Error (updateDevice):", err);
-    }
+    if (data.online !== undefined) deviceState.online = data.online;
+    if (data.feeding !== undefined) deviceState.feeding = data.feeding;
+    if (data.weight !== undefined) deviceState.weight = data.weight;
+    if (data.foodLevel !== undefined) deviceState.foodLevel = data.foodLevel;
+    if (data.dailyUsage !== undefined) deviceState.dailyUsage = data.dailyUsage;
+    if (data.firmware !== undefined) deviceState.firmware = data.firmware;
+    if (data.ip !== undefined) deviceState.ip = data.ip;
+    if (data.wifi !== undefined) deviceState.wifi = data.wifi;
+    if (data.feedAmount !== undefined) deviceState.feedAmount = data.feedAmount;
+    deviceState.lastSeen = new Date();
 }
 
 async function getDevice() {
-    try {
-        const { rows } = await sql`SELECT * FROM device_state WHERE device_id = ${DEVICE_ID}`;
-        if (rows.length === 0) return null;
-        
-        const row = rows[0];
-        return {
-            id: row.device_id,
-            online: row.online,
-            feeding: row.feeding,
-            weight: Number(row.weight),
-            foodLevel: row.food_level,
-            dailyUsage: Number(row.daily_usage),
-            firmware: row.firmware,
-            ip: row.ip,
-            wifi: Number(row.wifi),
-            lastSeen: row.last_seen,
-            feedAmount: Number(row.feed_amount)
-        };
-    } catch (err) {
-        console.error("DB Error (getDevice):", err);
-        return null;
-    }
+    return deviceState;
 }
 
-// =======================================
-// WEIGHT
-// =======================================
-
 async function updateWeight(weight) {
-    try {
-        await sql`
-            INSERT INTO device_state (device_id, weight, last_seen)
-            VALUES (${DEVICE_ID}, ${weight}, CURRENT_TIMESTAMP)
-            ON CONFLICT (device_id) 
-            DO UPDATE SET weight = EXCLUDED.weight, last_seen = CURRENT_TIMESTAMP
-        `;
-    } catch (err) {
-        console.error("DB Error (updateWeight):", err);
-    }
+    deviceState.weight = weight;
+    deviceState.lastSeen = new Date();
 }
 
 async function updateDailyUsage(dailyUsage) {
-    try {
-        await sql`
-            INSERT INTO device_state (device_id, daily_usage, last_seen)
-            VALUES (${DEVICE_ID}, ${dailyUsage}, CURRENT_TIMESTAMP)
-            ON CONFLICT (device_id) 
-            DO UPDATE SET daily_usage = EXCLUDED.daily_usage, last_seen = CURRENT_TIMESTAMP
-        `;
-    } catch (err) {
-        console.error("DB Error (updateDailyUsage):", err);
-    }
+    deviceState.dailyUsage = dailyUsage;
+    deviceState.lastSeen = new Date();
 }
-
-// =======================================
-// HISTORY
-// =======================================
 
 async function saveHistory(data) {
     try {
-        await sql`
-            INSERT INTO feed_history (device_id, amount, mode, timestamp)
-            VALUES (${DEVICE_ID}, ${data.amount}, ${data.mode || 'manual'}, CURRENT_TIMESTAMP)
-        `;
+        await ensureTableExists();
+        await sql.query(`
+            INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        `, [DEVICE_ID, data.amount, data.mode || 'manual']);
     } catch (err) {
         console.error("DB Error (saveHistory):", err);
     }
@@ -111,13 +81,13 @@ async function saveHistory(data) {
 
 async function getHistory(limit = 100) {
     try {
-        const { rows } = await sql`
+        await ensureTableExists();
+        const { rows } = await sql.query(`
             SELECT id, amount, mode, timestamp 
-            FROM feed_history 
-            WHERE device_id = ${DEVICE_ID} 
+            FROM "${DEVICE_ID}"
             ORDER BY timestamp DESC 
-            LIMIT ${limit}
-        `;
+            LIMIT $1
+        `, [limit]);
         return rows.map(row => ({
             id: String(row.id),
             amount: Number(row.amount),
@@ -132,101 +102,44 @@ async function getHistory(limit = 100) {
 
 async function clearHistory() {
     try {
-        await sql`DELETE FROM feed_history WHERE device_id = ${DEVICE_ID}`;
+        await ensureTableExists();
+        await sql.query(`DELETE FROM "${DEVICE_ID}"`);
     } catch (err) {
         console.error("DB Error (clearHistory):", err);
     }
 }
 
-// =======================================
-// ALERT
-// =======================================
-
 async function saveAlert(data) {
-    try {
-        await sql`
-            INSERT INTO alerts (device_id, message, level, timestamp)
-            VALUES (${DEVICE_ID}, ${data.message}, ${data.level || 'info'}, CURRENT_TIMESTAMP)
-        `;
-    } catch (err) {
-        console.error("DB Error (saveAlert):", err);
-    }
+    memoryAlerts.unshift({
+        id: String(Date.now()),
+        message: data.message,
+        level: data.level || 'info',
+        timestamp: new Date()
+    });
+    if (memoryAlerts.length > 50) memoryAlerts.pop();
 }
 
 async function getAlerts(limit = 20) {
-    try {
-        const { rows } = await sql`
-            SELECT id, message, level, timestamp 
-            FROM alerts 
-            WHERE device_id = ${DEVICE_ID} 
-            ORDER BY timestamp DESC 
-            LIMIT ${limit}
-        `;
-        return rows.map(row => ({
-            id: String(row.id),
-            message: row.message,
-            level: row.level,
-            timestamp: row.timestamp
-        }));
-    } catch (err) {
-        console.error("DB Error (getAlerts):", err);
-        return [];
-    }
+    return memoryAlerts.slice(0, limit);
 }
 
 async function clearAlerts() {
-    try {
-        await sql`DELETE FROM alerts WHERE device_id = ${DEVICE_ID}`;
-    } catch (err) {
-        console.error("DB Error (clearAlerts):", err);
-    }
+    memoryAlerts = [];
 }
 
-// =======================================
-// SCHEDULE
-// =======================================
-
 async function saveSchedules(schedules) {
-    try {
-        // Delete old schedules
-        await sql`DELETE FROM schedules WHERE device_id = ${DEVICE_ID}`;
-
-        // Insert new ones
-        for (const item of schedules) {
-            await sql`
-                INSERT INTO schedules (device_id, time, amount, enable, created_at)
-                VALUES (${DEVICE_ID}, ${item.time}, ${item.amount ?? 10}, ${item.enable ?? true}, CURRENT_TIMESTAMP)
-            `;
-        }
-    } catch (err) {
-        console.error("DB Error (saveSchedules):", err);
-    }
+    memorySchedules = schedules.map((item, index) => ({
+        id: String(index),
+        time: item.time,
+        amount: Number(item.amount ?? 10),
+        enable: item.enable ?? true,
+        createdAt: new Date()
+    }));
 }
 
 async function getSchedules() {
-    try {
-        const { rows } = await sql`
-            SELECT id, time, amount, enable, created_at 
-            FROM schedules 
-            WHERE device_id = ${DEVICE_ID} 
-            ORDER BY time ASC
-        `;
-        return rows.map(row => ({
-            id: String(row.id),
-            time: row.time,
-            amount: Number(row.amount),
-            enable: row.enable,
-            createdAt: row.created_at
-        }));
-    } catch (err) {
-        console.error("DB Error (getSchedules):", err);
-        return [];
-    }
+    return memorySchedules;
 }
-
-// =======================================
-// EXPORT
-// =======================================
 
 module.exports = {
     updateDevice,
