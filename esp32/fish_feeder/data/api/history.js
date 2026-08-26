@@ -49,11 +49,12 @@ module.exports = async function handler(req, res) {
                 );
             `);
             
-            if(timestamp) {
+            let d = timestamp ? new Date(timestamp) : null;
+            if(d && !isNaN(d.getTime()) && d.getFullYear() > 2020) {
                 await sql.query(`
                     INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
                     VALUES ($1, $2, $3, $4)
-                `, [DEVICE_ID, amount || 10, mode || 'manual', new Date(timestamp)]);
+                `, [DEVICE_ID, amount || 10, mode || 'manual', d]);
             } else {
                 await sql.query(`
                     INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
