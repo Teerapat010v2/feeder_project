@@ -382,11 +382,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                     const historyEvent = new CustomEvent('historyUpdatedUI', { detail: payloadHistory });
                     window.dispatchEvent(historyEvent);
-                } catch (e) {
-                    console.error("❌ แปลง History MQTT ล้มเหลว", e);
-                }
-            }
-            }
+                } catch (e) { console.error("❌ แปลง History MQTT ล้มเหลว", e); } }
         });
 
         mqttClient.on('error', (err) => {
