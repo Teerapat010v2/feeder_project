@@ -1437,7 +1437,7 @@ window.alert = function(message) {
             } else {
                 if (typeof mqttClient !== 'undefined' && mqttClient.connected) {
                     const payload = { action: "SET_SPEED", speed: Number(speed) };
-                    mqttClient.publish(DEVICE_ID + "/command", JSON.stringify(payload));
+                    mqttClient.publish(TOPIC_CMD, JSON.stringify(payload));
                     setTimeout(() => {
                         alert("ส่งคำสั่งความเร็วมอเตอร์สำเร็จ");
                         saveMotorSpeedBtn.innerHTML = prevText;
