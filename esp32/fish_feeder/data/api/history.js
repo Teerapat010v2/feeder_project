@@ -62,12 +62,12 @@ module.exports = async function handler(req, res) {
                 await sql.query(`
                     INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp, raw_ts)
                     VALUES ($1, $2, $3, $4, $5)
-                `, [DEVICE_ID, amount || 10, mode || 'manual', d, timestamp || '']);
+                `, [DEVICE_ID, amount !== undefined ? amount : 10, mode || 'manual', d, timestamp || '']);
             } else {
                 await sql.query(`
                     INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp, raw_ts)
                     VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)
-                `, [DEVICE_ID, amount || 10, mode || 'manual', timestamp || '']);
+                `, [DEVICE_ID, amount !== undefined ? amount : 10, mode || 'manual', timestamp || '']);
             }
             return res.status(200).json({ success: true });
         } catch (error) {
