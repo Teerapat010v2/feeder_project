@@ -190,7 +190,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 motorEl.textContent = "เครื่องปิด";
                 motorEl.className = "status-value-text gray";
             } else {
-                const motorSpeedText = data.motor_speed !== undefined ? `พร้อม (${data.motor_speed}%)` : "พร้อม";
+                const motorSpeedText = data.motor_speed !== undefined ? `${data.motor_speed}%` : "100%";
                 motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : motorSpeedText);
                 motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
             }
