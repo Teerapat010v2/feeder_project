@@ -1152,9 +1152,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    if (clearHistoryBtn) {
+        if (clearHistoryBtn) {
         clearHistoryBtn.addEventListener("click", async () => {
-            if (!confirm("คุณต้องการลบประวัติทั้งหมดใช่หรือไม่?")) return;
+            if (!confirm("คุณต้องการล้างประวัติทั้งหมดใช่หรือไม่?")) return;
 
             try {
                 if (window.isLocalMode) {
@@ -1163,19 +1163,28 @@ document.addEventListener("DOMContentLoaded", () => {
                         headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
                     });
                     if (response.ok) {
-                        alert("✅ ล้างประวัติเรียบร้อย");
+                        alert("✅ ล้างประวัติในระบบ Local เรียบร้อยแล้ว");
                         window.loadHistory();
                     }
                 } else {
                     if (mqttClient && mqttClient.connected) {
                         mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "CLEAR_HISTORY" }));
-                        alert("✅ ส่งคำสั่งล้างประวัติผ่านระบบออนไลน์แล้ว");
+                        
+                        // Clear Vercel DB in Online Mode
+                        await fetch("/api/history", {
+                            method: "DELETE",
+                            headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+                        });
+                        lastSyncedHistoryJson = ""; // Reset sync cache
+                        
+                        alert("✅ ส่งคำสั่งล้างประวัติผ่านระบบออนไลน์และฐานข้อมูลเรียบร้อยแล้ว");
+                        window.loadHistory();
                     } else {
                         alert("❌ ไม่สามารถเชื่อมต่อ MQTT ได้");
                     }
                 }
             } catch (err) {
-                alert("❌ ล้างประวัติล้มเหลว");
+                alert("❌ เกิดข้อผิดพลาดในการล้างประวัติ");
             }
         });
     }
