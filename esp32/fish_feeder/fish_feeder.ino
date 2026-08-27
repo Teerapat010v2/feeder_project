@@ -28,6 +28,7 @@
 #define LED_R      19   
 #define LED_G      23   
 #define LED_B      25   
+#define WIFI_RESET_PIN 4 // External button for Wi-Fi reset
 
 // =================================================================
 // 📌 2. โซนปรับแต่งค่าการทำงาน (ADJUSTABLE PARAMETERS)
@@ -58,6 +59,10 @@ String deviceId = "feeder_";
 float weightBeforeFeed = 0.0;
 bool forceManualMode = false;
 String currentFeedMode = "manual";
+
+// --- Hardware Button State ---
+unsigned long wifiResetPressTime = 0;
+bool wifiResetPressed = false;
 
 // --- NTP & Scheduling ---
 const char* ntpServer = "pool.ntp.org";
@@ -358,6 +363,8 @@ void setup() {
   // กำหนดชื่อบอร์ดเป็น Prototype_01
   deviceId = "Prototype_01";
   
+  pinMode(WIFI_RESET_PIN, INPUT_PULLUP);
+  
   Serial.println("\n--- [ESP32 Smart Fish Feeder Starting] ---");
   Serial.print("Device ID: ");
   Serial.println(deviceId);
@@ -599,6 +606,25 @@ void checkSchedules() {
 // 📌 9. ฟังก์ชันการทำงานหลัก LOOP
 // =================================================================
 void loop() {
+  // Check Wi-Fi Reset Button (Hold for 3 seconds)
+  if (digitalRead(WIFI_RESET_PIN) == LOW) {
+    if (!wifiResetPressed) {
+      wifiResetPressed = true;
+      wifiResetPressTime = millis();
+    } else if (millis() - wifiResetPressTime > 3000) {
+      Serial.println("\n🔄 Hardware WiFi Reset Button Pressed! Clearing WiFi config...");
+      preferences.begin("wifi_config", false);
+      preferences.clear(); 
+      preferences.end();
+      Serial.println("✅ WiFi Config Cleared. Rebooting in AP mode...");
+      setRGB(true, false, false); // Red LED to indicate reset
+      delay(2000);
+      ESP.restart();
+    }
+  } else {
+    wifiResetPressed = false;
+  }
+
   testMotorSerial();              
 
   dnsServer.processNextRequest(); 
