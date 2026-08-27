@@ -588,6 +588,600 @@ document.addEventListener("DOMContentLoaded", () => {
 
     window.addEventListener('historyUpdatedUI', (e) => {
         if (e.detail && Array.isArray(e.detail)) {
+            updateDashboardLastFeed(e.detail);
+        }
+    });
+
+    // เรียกตอนโหลดหน้าจอ
+    loadDashboardTimes();
+
+    // --- 6. ควบคุมไฟ LED Status บน UI ---
+    const ledPower = document.getElementById("ledPower");
+    const ledLocal = document.getElementById("ledAp");
+    const ledOnline = document.getElementById("ledMqtt");
+
+    function updateUiLeds() {
+        if (!currentDeviceOnline) {
+            // เครื่องปิดอยู่: ไฟทุกสีจะดับ
+            if (ledPower) ledPower.classList.remove("active");
+            if (ledLocal) ledLocal.classList.remove("active");
+            if (ledOnline) ledOnline.classList.remove("active");
+        } else {
+            // เสียบปลั๊ก: ไฟสีแดงติด
+            if (ledPower) ledPower.classList.add("active");
+            
+            if (window.isLocalMode) {
+                // บอร์ดปล่อยไวไฟ: ไฟสีเหลืองติด (Local)
+                if (ledLocal) ledLocal.classList.add("active");
+                if (ledOnline) ledOnline.classList.remove("active");
+            } else {
+                // บอร์ดเชื่อมไวไฟ: ไฟสีเขียวติด (Online)
+                if (ledLocal) ledLocal.classList.remove("active");
+                if (ledOnline) ledOnline.classList.add("active");
+            }
+        }
+    }
+    
+    // เรียกตอนเริ่ม และเซ็ตให้เรียกซ้ำ
+    updateUiLeds();
+    setInterval(updateUiLeds, 2000);
+});
+// =====================================
+// AP WIFI SETTINGS LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const saveApBtn = document.getElementById("saveApBtn");
+    const resetApBtn = document.getElementById("resetApBtn");
+    const apSsidInput = document.getElementById("apSsidInput");
+    const apPasswordInput = document.getElementById("apPasswordInput");
+    
+    // (Device ID is hardcoded to Prototype_01, no save button logic needed)
+
+    // 1. กดปุ่มบันทึกชื่อ/รหัสผ่าน Wi-Fi ของตัวเครื่อง (AP Mode)
+    if (saveApBtn) {
+        saveApBtn.addEventListener("click", async () => {
+            const apSsid = apSsidInput?.value.trim() || "";
+            const apPass = apPasswordInput?.value.trim() || "";
+
+            if (!apSsid) {
+                alert("กรุณากรอกชื่อ WiFi ของเครื่อง");
+                return;
+            }
+
+            saveApBtn.disabled = true;
+            saveApBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                if (window.isLocalMode) {
+                    const response = await fetch(`/api/save-ap?apSsid=${encodeURIComponent(apSsid)}&apPass=${encodeURIComponent(apPass)}`, { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ " + resData.message);
+                    } else {
+                        alert("❌ บันทึกไม่สำเร็จ");
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_AP_WIFI", apSsid: apSsid, apPass: apPass }));
+                        alert("✅ ส่งคำสั่งบันทึก AP WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
+                }
+            } catch (err) {
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ติดต่อ ESP32 ไม่ได้!");
+                }
+            } finally {
+                saveApBtn.disabled = false;
+                saveApBtn.textContent = "บันทึกชื่อ/รหัสผ่านเครื่อง";
+            }
+        });
+    }
+
+    // 2. กดปุ่มรีเซ็ตค่าเริ่มต้นของเครื่อง
+    if (resetApBtn) {
+        resetApBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการรีเซ็ตค่าเริ่มต้นของเครื่องใช่หรือไม่?")) return;
+
+            try {
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/reset-wifi", { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ ล้างค่าเรียบร้อย ESP32 กำลังรีบูต");
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "RESET_WIFI" }));
+                        alert("✅ ส่งคำสั่งรีเซ็ต WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
+                }
+            } catch (err) {
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ส่งคำสั่งรีเซ็ตไม่สำเร็จ");
+                }
+            }
+        });
+    }
+});
+
+// =====================================
+// SIDEBAR (HAMBURGER MENU) LOGIC
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const hamburgerBtn = document.getElementById("hamburgerBtn");
+    const closeSidebarBtn = document.getElementById("closeSidebarBtn");
+    const sidebarDrawer = document.getElementById("sidebarDrawer");
+    const sidebarOverlay = document.getElementById("sidebarOverlay");
+
+    if (hamburgerBtn && sidebarDrawer && sidebarOverlay) {
+        const closeMenu = () => {
+            sidebarDrawer.classList.remove("active");
+            sidebarOverlay.classList.remove("active");
+        };
+
+        hamburgerBtn.addEventListener("click", () => {
+            sidebarDrawer.classList.add("active");
+            sidebarOverlay.classList.add("active");
+        });
+
+        if (closeSidebarBtn) closeSidebarBtn.addEventListener("click", closeMenu);
+        sidebarOverlay.addEventListener("click", closeMenu);
+    }
+});
+
+// =====================================
+// TAB NAVIGATION SWITCH LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const tabApBtn = document.getElementById("tabApBtn");
+    const tabHomeBtn = document.getElementById("tabHomeBtn");
+    const sectionAp = document.getElementById("section-ap-settings");
+    const sectionHome = document.getElementById("section-home-settings");
+
+    if (tabApBtn && tabHomeBtn) {
+        tabApBtn.addEventListener("click", () => {
+            tabApBtn.classList.add("active");
+            tabHomeBtn.classList.remove("active");
+
+            if (sectionAp) sectionAp.style.display = "block";
+            if (sectionHome) sectionHome.style.display = "none";
+        });
+
+        tabHomeBtn.addEventListener("click", () => {
+            tabHomeBtn.classList.add("active");
+            tabApBtn.classList.remove("active");
+
+            if (sectionAp) sectionAp.style.display = "none";
+            if (sectionHome) sectionHome.style.display = "block";
+        });
+    }
+});
+
+// =====================================
+// HOME WIFI SETTINGS LOGIC (settings.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const connectWifiBtn = document.getElementById("connectWifiBtn");
+    const forgetWifiBtn = document.getElementById("forgetWifiBtn");
+    const homeSsidInput = document.getElementById("homeSsidInput");
+    const homePasswordInput = document.getElementById("homePasswordInput");
+
+    // 2. กดปุ่ม บันทึก / เชื่อมต่อ
+    if (connectWifiBtn) {
+        connectWifiBtn.addEventListener("click", async () => {
+            const ssid = homeSsidInput?.value.trim();
+            const pass = homePasswordInput?.value.trim() || "";
+
+            if (!ssid) {
+                alert("กรุณาเลือกหรือกรอกชื่อ SSID Wi-Fi บ้าน");
+                return;
+            }
+
+            connectWifiBtn.disabled = true;
+            connectWifiBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                if (window.isLocalMode) {
+                    const response = await fetch(`/api/save-wifi?ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}`, { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ " + resData.message);
+                    } else {
+                        alert("❌ " + (resData.message || "บันทึกไม่สำเร็จ"));
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_HOME_WIFI", ssid: ssid, pass: pass }));
+                        alert("✅ ส่งคำสั่งตั้งค่า WiFi บ้านเรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
+                }
+            } catch (err) {
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ติดต่อบอร์ดไม่ได้!");
+                }
+            } finally {
+                connectWifiBtn.disabled = false;
+                connectWifiBtn.textContent = "บันทึก / เชื่อมต่อ";
+            }
+        });
+    }
+
+    // 3. ลืมเครือข่ายนี้ (Reset WiFi)
+    if (forgetWifiBtn) {
+        forgetWifiBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการลืมเครือข่ายและรีเซ็ตค่า Wi-Fi ใช่หรือไม่?")) return;
+            try {
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/reset-wifi", { method: "POST" });
+                    const resData = await response.json();
+                    if (resData.success) {
+                        alert("✅ ลืมเครือข่ายเรียบร้อย ESP32 กำลังรีบูต");
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "RESET_WIFI" }));
+                        alert("✅ ส่งคำสั่งลืมเครือข่าย WiFi เรียบร้อย (เครื่องกำลังรีบูต)");
+                    } else {
+                        throw new Error("MQTT_BLOCKED");
+                    }
+                }
+            } catch (err) {
+                if (err.message === "MQTT_BLOCKED") {
+                    alert("❌ ไม่สามารถโหลดระบบเชื่อมต่อได้ (กรุณาปิด Adblocker แล้วรีเฟรช)");
+                } else {
+                    alert("❌ ลืมเครือข่ายไม่สำเร็จ");
+                }
+            }
+        });
+    }
+});
+// =====================================
+// SCHEDULE LOGIC (schedule.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const scheduleContainer = document.getElementById("scheduleContainer");
+    if (!scheduleContainer) return; // ไม่ใช่หน้า schedule.html
+
+    const addScheduleBtn = document.getElementById("addScheduleBtn");
+    const saveScheduleBtn = document.getElementById("saveScheduleBtn");
+    const scheduleCountBadge = document.getElementById("scheduleCountBadge");
+    
+    let schedules = [];
+    let isEditing = false;
+    const MAX_SCHEDULES = 4;
+
+    // ฟังก์ชันสร้างแถว UI
+    function renderSchedules() {
+        scheduleContainer.innerHTML = "";
+        
+        if (schedules.length === 0) {
+            scheduleContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 20px;">ยังไม่มีการตั้งเวลา</div>`;
+        }
+
+        schedules.forEach((item, index) => {
+            const row = document.createElement("div");
+            row.className = "setting-row";
+            row.style.position = "relative";
+            row.style.padding = "16px";
+            row.style.marginBottom = "12px";
+            row.style.border = "1px solid var(--border-color)";
+            row.style.borderRadius = "14px";
+            row.style.background = "#f8fafc";
+            row.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="setting-icon-box bg-blue-light" style="width: 32px; height: 32px; font-size: 14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div>
+                        <div style="font-size: 14px; font-weight: 700; color: var(--text-main);">รอบที่ ${index + 1}</div>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <label class="toggle-switch-labeled" style="margin:0;">
+                            <input type="checkbox" class="enable-toggle" data-index="${index}" ${item.enable ? "checked" : ""}>
+                            <div class="toggle-ui" style="background:${item.enable ? 'var(--primary-color)' : '#ccc'};">
+                                <div class="toggle-knob" style="left:${item.enable ? '26px' : '2px'};"></div>
+                            </div>
+                        </label>
+                        <button class="btn-icon-sm btn-delete-schedule" data-index="${index}" style="color: #ef4444; background: #fee2e2; border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div class="input-modern-wrapper" style="margin: 0; height: 44px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; display: flex; overflow: hidden;">
+                        <div style="padding: 0 10px; color: var(--text-muted); display:flex; align-items:center; background: #f1f5f9; border-right: 1px solid #cbd5e1; font-size:12px; font-weight: 600;">เวลา</div>
+                        <select class="time-hour-input" data-index="${index}" style="border:none; outline:none; background:transparent; padding:0 4px; font-weight:700; font-size:14px; color:var(--text-main); flex:1; text-align:center; appearance:none; text-align-last:center;">
+                            ${Array.from({length:24}, (_,i) => `<option value="${i.toString().padStart(2,'0')}" ${item.time.split(':')[0] === i.toString().padStart(2,'0') ? 'selected' : ''}>${i.toString().padStart(2,'0')}</option>`).join('')}
+                        </select>
+                        <span style="font-weight:700; display:flex; align-items:center; color: var(--text-muted);">:</span>
+                        <select class="time-minute-input" data-index="${index}" style="border:none; outline:none; background:transparent; padding:0 4px; font-weight:700; font-size:14px; color:var(--text-main); flex:1; text-align:center; appearance:none; text-align-last:center;">
+                            ${Array.from({length:60}, (_,i) => `<option value="${i.toString().padStart(2,'0')}" ${item.time.split(':')[1] === i.toString().padStart(2,'0') ? 'selected' : ''}>${i.toString().padStart(2,'0')}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="input-modern-wrapper" style="margin: 0; height: 44px; border-radius: 10px; border: 1px solid #cbd5e1; background: #fff; display: flex; overflow: hidden;">
+                        <input type="number" class="amount-input" value="${item.amount || 10}" min="1" max="3000" data-index="${index}" style="flex:1; border:none; outline:none; text-align:center; padding:0 10px; font-weight:700; font-size:14px; color:var(--text-main); background:transparent;" required>
+                        <span class="input-suffix" style="font-size:12px; padding:0 10px; background: #f1f5f9; border-left: 1px solid #cbd5e1; display:flex; align-items:center; font-weight:600; color:var(--text-muted);">กรัม</span>
+                    </div>
+                </div>
+            `;
+            scheduleContainer.appendChild(row);
+        });
+
+        // ผูก Event Listener ใหม่
+        document.querySelectorAll(".time-hour-input").forEach(select => {
+            select.addEventListener("change", (e) => {
+                isEditing = true;
+                const idx = e.target.dataset.index;
+                const min = document.querySelector(`.time-minute-input[data-index="${idx}"]`).value;
+                schedules[idx].time = `${e.target.value}:${min}`;
+            });
+        });
+
+        document.querySelectorAll(".time-minute-input").forEach(select => {
+            select.addEventListener("change", (e) => {
+                isEditing = true;
+                const idx = e.target.dataset.index;
+                const hr = document.querySelector(`.time-hour-input[data-index="${idx}"]`).value;
+                schedules[idx].time = `${hr}:${e.target.value}`;
+            });
+        });
+
+        document.querySelectorAll(".amount-input").forEach(input => {
+            input.addEventListener("change", (e) => {
+                isEditing = true;
+                schedules[e.target.dataset.index].amount = Number(e.target.value);
+            });
+        });
+
+        document.querySelectorAll(".enable-toggle").forEach(toggle => {
+            toggle.addEventListener("change", (e) => {
+                isEditing = true;
+                const isChecked = e.target.checked;
+                schedules[e.target.dataset.index].enable = isChecked;
+                
+                // Update UI visually without re-rendering everything
+                const label = e.target.closest('label');
+                const ui = label.querySelector('.toggle-ui');
+                const knob = label.querySelector('.toggle-knob');
+                const text = label.querySelector('.toggle-label');
+                
+                if (isChecked) {
+                    ui.style.background = 'var(--primary-color)';
+                    knob.style.left = '26px';
+                    text.style.color = 'var(--primary-color)';
+                    text.textContent = 'เปิด';
+                } else {
+                    ui.style.background = '#ccc';
+                    knob.style.left = '2px';
+                    text.style.color = 'var(--text-muted)';
+                    text.textContent = 'ปิด';
+                }
+            });
+        });
+
+        document.querySelectorAll(".btn-delete-schedule").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                isEditing = true;
+                const index = e.currentTarget.dataset.index;
+                schedules.splice(index, 1);
+                renderSchedules();
+            });
+        });
+
+        scheduleCountBadge.textContent = `${schedules.length}/${MAX_SCHEDULES} รอบ`;
+        addScheduleBtn.disabled = schedules.length >= MAX_SCHEDULES;
+    }
+
+    // โหลดข้อมูลเริ่มต้น
+    async function loadSchedules() {
+        if (isEditing) return; // อย่าอัปเดตทับถ้ากำลังแก้ไขอยู่
+        // Removed window.isLocalMode early return to allow API fetch in online mode too
+        try {
+            const response = await fetch("/api/schedule?t=" + new Date().getTime());
+            if (response.ok) {
+                const data = await response.json();
+                // รองรับข้อมูลที่ตอบกลับมาเป็น { schedules: [...] } หรือ [...] โดยตรง
+                if (data && data.schedules && Array.isArray(data.schedules)) {
+                    schedules = data.schedules;
+                } else if (Array.isArray(data)) {
+                    schedules = data;
+                } else {
+                    schedules = [];
+                }
+                renderSchedules();
+            }
+        } catch (err) {
+            console.warn("ไม่สามารถโหลดตารางเวลาได้");
+            renderSchedules();
+        }
+    }
+
+    if (addScheduleBtn) {
+        addScheduleBtn.addEventListener("click", () => {
+            if (schedules.length < MAX_SCHEDULES) {
+                isEditing = true;
+                schedules.push({ time: "08:00", amount: 10, enable: true });
+                renderSchedules();
+            }
+        });
+    }
+
+    if (saveScheduleBtn) {
+        saveScheduleBtn.addEventListener("click", async () => {
+            // Validate
+            for (let s of schedules) {
+                if (!s.time) {
+                    alert("กรุณาระบุเวลาให้ครบทุกช่อง");
+                    return;
+                }
+            }
+
+            saveScheduleBtn.disabled = true;
+            saveScheduleBtn.textContent = "⏳ กำลังบันทึก...";
+
+            try {
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/schedule", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ schedules })
+                    });
+
+                    if (response.ok) {
+                        alert("✅ บันทึกตารางเวลาเรียบร้อยแล้ว");
+                        isEditing = false;
+                    } else {
+                        alert("❌ บันทึกไม่สำเร็จ");
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_SCHEDULE, JSON.stringify(schedules), { retain: true });
+                        alert("✅ บันทึกตารางเวลาผ่านระบบออนไลน์เรียบร้อยแล้ว");
+                        isEditing = false;
+                    } else {
+                        alert("❌ ไม่สามารถติดต่อเซิร์ฟเวอร์ MQTT ได้");
+                    }
+                }
+            } catch (err) {
+                alert(`❌ เกิดข้อผิดพลาด: ${err.message}`);
+            } finally {
+                saveScheduleBtn.disabled = false;
+                saveScheduleBtn.textContent = "บันทึกตารางเวลา";
+            }
+        });
+    }
+
+    window.addEventListener('scheduleUpdatedUI', (e) => {
+        if (isEditing) return;
+        if (e.detail && Array.isArray(e.detail)) {
+            schedules = e.detail;
+        }
+        renderSchedules();
+    });
+
+    loadSchedules();
+    if (window.isLocalMode) {
+        // ฟัง event จากหน้า index เมื่อ schedule_count เปลี่ยน
+        window.addEventListener('scheduleUpdated', () => {
+            loadSchedules();
+        });
+        // poll schedule ทุก 5 วินาที ในโหมด Local เพื่อรับการเปลี่ยนแปลงจาก Online
+        setInterval(loadSchedules, 5000);
+    }
+});
+
+// =====================================
+// HISTORY LOGIC (history.html)
+// =====================================
+document.addEventListener("DOMContentLoaded", () => {
+    const historyTableBody = document.getElementById("historyTableBody");
+    const totalFoodSummary = document.getElementById("totalFoodSummary");
+    if (!historyTableBody) return; // ไม่ใช่หน้า history.html
+
+    const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+
+    window.loadHistory = async function() {
+        try {
+            const response = await fetch("/api/history", {
+                headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+            });
+            if (response.ok) {
+                const history = await response.json();
+                renderHistory(history);
+            } else {
+                historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">โหลดข้อมูลล้มเหลว</td></tr>`;
+            }
+        } catch (err) {
+            historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">ไม่สามารถติดต่อเซิร์ฟเวอร์ได้</td></tr>`;
+        }
+    }
+
+    function renderHistory(history) {
+        historyTableBody.innerHTML = "";
+        let totalAmount = 0;
+
+        if (history.length === 0) {
+            historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">ไม่มีประวัติการทำงาน</td></tr>`;
+        } else {
+            history.forEach(item => {
+                totalAmount += item.amount;
+                let ts = item.timestamp;
+                if (typeof ts === 'string' && !ts.includes('Z') && !ts.includes('+')) {
+                    ts = ts.replace(' ', 'T') + 'Z';
+                }
+                const date = new Date(ts);
+                const dateStr = date.toLocaleDateString("th-TH", { timeZone: 'Asia/Bangkok' });
+                const timeStr = date.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Bangkok' });
+                const modeBadge = item.mode === 'auto' 
+                    ? `<span class="status-badge green" style="padding:2px 6px;font-size:10px;">AUTO</span>`
+                    : `<span class="status-badge gray" style="padding:2px 6px;font-size:10px;">MANUAL</span>`;
+
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${DEVICE_ID}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${dateStr} ${timeStr}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color); font-weight: bold; color: var(--primary-color);">${item.amount} กรัม</td>
+                    <td style="padding: 10px; border-bottom: 1px solid var(--border-color);">${modeBadge}</td>
+                `;
+                historyTableBody.appendChild(tr);
+            });
+        }
+
+        if (totalFoodSummary) {
+            totalFoodSummary.textContent = `${totalAmount} g`;
+        }
+    }
+
+        if (clearHistoryBtn) {
+        clearHistoryBtn.addEventListener("click", async () => {
+            if (!confirm("คุณต้องการล้างประวัติทั้งหมดใช่หรือไม่?")) return;
+
+            try {
+                if (window.isLocalMode) {
+                    const response = await fetch("/api/history", {
+                        method: "DELETE",
+                        headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+                    });
+                    if (response.ok) {
+                        alert("✅ ล้างประวัติในระบบ Local เรียบร้อยแล้ว");
+                        window.loadHistory();
+                    }
+                } else {
+                    if (mqttClient && mqttClient.connected) {
+                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "CLEAR_HISTORY" }));
+                        
+                        // Clear Vercel DB in Online Mode
+                        await fetch("/api/history", {
+                            method: "DELETE",
+                            headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
+                        });
+                        lastSyncedHistoryJson = ""; // Reset sync cache
+                        
+                        alert("✅ ส่งคำสั่งล้างประวัติผ่านระบบออนไลน์และฐานข้อมูลเรียบร้อยแล้ว");
+                        window.loadHistory();
+                    } else {
+                        alert("❌ ไม่สามารถเชื่อมต่อ MQTT ได้");
+                    }
+                }
+            } catch (err) {
+                alert("❌ เกิดข้อผิดพลาดในการล้างประวัติ");
+            }
+        });
+    }
+
+    window.addEventListener('historyUpdatedUI', (e) => {
+        if (e.detail && Array.isArray(e.detail)) {
             if (window.isLocalMode) {
                 renderHistory(e.detail);
             }
