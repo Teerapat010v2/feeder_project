@@ -14,11 +14,12 @@ module.exports = async function handler(req, res) {
                     device_id VARCHAR(50) NOT NULL,
                     amount NUMERIC NOT NULL,
                     mode VARCHAR(20) DEFAULT 'manual',
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    raw_ts VARCHAR(50)
                 );
             `);
             const { rows } = await sql.query(`
-                SELECT id, amount, mode, timestamp 
+                SELECT id, amount, mode, timestamp, raw_ts 
                 FROM "${DEVICE_ID}"
                 ORDER BY timestamp DESC 
                 LIMIT $1
@@ -27,7 +28,8 @@ module.exports = async function handler(req, res) {
                 id: String(row.id),
                 amount: Number(row.amount),
                 mode: row.mode,
-                timestamp: row.timestamp
+                timestamp: row.timestamp,
+                raw_ts: row.raw_ts
             }));
             return res.status(200).json(history);
         } catch (error) {
@@ -45,21 +47,27 @@ module.exports = async function handler(req, res) {
                     device_id VARCHAR(50) NOT NULL,
                     amount NUMERIC NOT NULL,
                     mode VARCHAR(20) DEFAULT 'manual',
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    raw_ts VARCHAR(50)
                 );
             `);
+            
+            // Alter table to add raw_ts if it was created before this update
+            try {
+                await sql.query(`ALTER TABLE "${DEVICE_ID}" ADD COLUMN IF NOT EXISTS raw_ts VARCHAR(50);`);
+            } catch(e) {}
             
             let d = timestamp ? new Date(timestamp) : null;
             if(d && !isNaN(d.getTime()) && d.getFullYear() > 2020) {
                 await sql.query(`
-                    INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
-                    VALUES ($1, $2, $3, $4)
-                `, [DEVICE_ID, amount || 10, mode || 'manual', d]);
+                    INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp, raw_ts)
+                    VALUES ($1, $2, $3, $4, $5)
+                `, [DEVICE_ID, amount || 10, mode || 'manual', d, timestamp || '']);
             } else {
                 await sql.query(`
-                    INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp)
-                    VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-                `, [DEVICE_ID, amount || 10, mode || 'manual']);
+                    INSERT INTO "${DEVICE_ID}" (device_id, amount, mode, timestamp, raw_ts)
+                    VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4)
+                `, [DEVICE_ID, amount || 10, mode || 'manual', timestamp || '']);
             }
             return res.status(200).json({ success: true });
         } catch (error) {

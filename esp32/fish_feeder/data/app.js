@@ -13,6 +13,21 @@ const MQTT_OPTIONS = {
     password: "Teerapat99",
     clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
 };
+// =====================================
+// REAL-TIME WEIGHT & FEED CONTROL (DUAL MODE: LOCAL & ONLINE)
+// =====================================
+const DEVICE_ID = "Prototype_01";
+
+// --- ตรวจสอบว่าเป็นโหมด Online หรือ Local ---
+window.isLocalMode = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(window.location.hostname);
+
+// --- ตั้งค่า HiveMQ (สำหรับ Online Mode) ---
+const MQTT_BROKER = "wss://97a545ab69f44dde939442a2b857bc3b.s1.eu.hivemq.cloud:8884/mqtt";
+const MQTT_OPTIONS = {
+    username: "teerapat",
+    password: "Teerapat99",
+    clientId: "dashboard_" + Math.random().toString(16).substr(2, 8)
+};
 
 const TOPIC_STATUS = `fishfeeder/${DEVICE_ID}/status`;
 const TOPIC_CMD = `fishfeeder/${DEVICE_ID}/cmd/command`;
@@ -20,6 +35,7 @@ const TOPIC_SCHEDULE = `fishfeeder/${DEVICE_ID}/schedule`;
 const TOPIC_HISTORY = `fishfeeder/${DEVICE_ID}/history`;
 
 let mqttClient = null;
+let lastSyncedHistoryJson = "";
 
 document.addEventListener("DOMContentLoaded", () => {
     // --- 1. ประกาศตัวแปร DOM Elements จาก index.html ---
@@ -201,178 +217,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 motorSpeedSlider.value = data.motor_speed;
                 if (motorSpeedValueText) motorSpeedValueText.textContent = data.motor_speed;
             }
-        }
-        if (scaleEl) {
-            if (!onlineStatus) {
-                scaleEl.textContent = "เครื่องปิด";
-                scaleEl.className = "status-value-text gray";
-            } else {
-                scaleEl.textContent = scaleStat === "NORMAL" ? "ปกติ" : "ขัดข้อง";
-                scaleEl.className = scaleStat === "NORMAL" ? "status-value-text green" : "status-value-text red";
-            }
-        }
-        
-        // Disable controls if offline
-        if (modeToggle) modeToggle.disabled = !onlineStatus;
-        if (feedBtn) feedBtn.disabled = !onlineStatus || (modeToggle && !modeToggle.checked);
-        if (feedAmount) feedAmount.disabled = !onlineStatus || (modeToggle && !modeToggle.checked);
-        if (stopBtn) stopBtn.disabled = !onlineStatus;
-        
-        if (!onlineStatus) {
-            labelAuto?.classList.remove("active");
-            labelManual?.classList.remove("active");
-        } else {
-            const isManual = modeToggle ? modeToggle.checked : (mode === "MANUAL");
-            updateModeUI(isManual, onlineStatus);
-        }
-
-        if (!onlineStatus) {
-            document.body.classList.add("offline-mode");
-        } else {
-            document.body.classList.remove("offline-mode");
-        }
-    }
-
-    // --- โหมด Auto/Manual สลับปุ่มให้อาหาร ---
-    const labelAuto = document.getElementById("label-auto");
-    const labelManual = document.getElementById("label-manual");
-
-    function updateModeUI(isManual, onlineStatus = true) {
-        if (!onlineStatus) return; // Prevent overwriting if offline
-        
-        if (isManual) {
-            labelManual?.classList.add("active");
-            labelAuto?.classList.remove("active");
-            if (feedBtn) feedBtn.disabled = false;
-            if (feedAmount) feedAmount.disabled = false;
-        } else {
-            labelAuto?.classList.add("active");
-            labelManual?.classList.remove("active");
-            if (feedBtn) feedBtn.disabled = true;
-            if (feedAmount) feedAmount.disabled = true;
-        }
-    }
-
-    if (modeToggle) {
-        modeToggle.addEventListener("change", async (e) => {
-            const isManual = e.target.checked;
-            
-            // Set debouncing flag
-            isModeUpdating = true;
-            updateModeUI(isManual);
-            
-            const modeEl = document.getElementById("statusCurrentMode");
-            if (modeEl) {
-                modeEl.textContent = isManual ? "Manual" : "Auto";
-                modeEl.className = isManual ? "status-value-text warning" : "status-value-text green";
-            }
-            
-            if (window.isLocalMode) {
-                try {
-                    const response = await fetch(`/api/set-mode?manual=${isManual ? '1' : '0'}`);
-                    const result = await response.json();
-                    if (result.success) {
-                        alert("✅ เปลี่ยนโหมด (Local) สำเร็จ");
-                    } else {
-                        modeToggle.checked = !isManual; // Revert
-                        updateModeUI(!isManual);
-                    }
-                } catch (err) {
-                    modeToggle.checked = !isManual; // Revert
-                    updateModeUI(!isManual);
-                    alert("❌ เปลี่ยนโหมดไม่สำเร็จ (Local)");
-                }
-            } else {
-                if (!window.isLocalMode && typeof mqtt !== 'undefined') {
-                    if (mqttClient && mqttClient.connected) {
-                        mqttClient.publish(TOPIC_CMD, JSON.stringify({ action: "SET_MODE", mode: isManual ? "MANUAL" : "AUTO" }));
-                        alert(`✅ เปลี่ยนเป็นโหมด ${isManual ? 'MANUAL' : 'AUTO'} แล้ว`);
-                    } else {
-                        modeToggle.checked = !isManual;
-                        updateModeUI(!isManual);
-                        alert("❌ ไม่สามารถเปลี่ยนโหมดได้ (MQTT ไม่เชื่อมต่อ)");
-                    }
-                }
-            }
-            
-            // Clear debouncing flag after 3 seconds (allows ESP32 enough time to sync the new status)
-            setTimeout(() => {
-                isModeUpdating = false;
-            }, 3000);
-        });
-    }
-
-    // --- เริ่มต้นระบบตามโหมด ---
-    if (!window.isLocalMode && typeof mqtt !== 'undefined') {
-        // [ONLINE MODE] ใช้ MQTT
-        if (tankWeightText) {
-            updateDashboardUI(0, false);
-        }
-        console.log("🌐 กำลังเชื่อมต่อ Online Mode (HiveMQ)...");
-        mqttClient = mqtt.connect(MQTT_BROKER, MQTT_OPTIONS);
-
-        mqttClient.on('connect', () => {
-            console.log("✅ เชื่อมต่อ HiveMQ สำเร็จ");
-            mqttClient.subscribe(TOPIC_STATUS);
-            mqttClient.subscribe(TOPIC_SCHEDULE);
-            mqttClient.subscribe(TOPIC_HISTORY);
-            if (connStatus) {
-                connStatus.className = "status-badge online";
-                connStatus.innerText = "● Online";
-            }
-        });
-
-        mqttClient.on('message', (topic, message) => {
-            if (topic === TOPIC_STATUS) {
-                try {
-                    const data = JSON.parse(message.toString());
-                    updateDashboardUI(data, true);
-                } catch (e) {
-                    console.error("❌ แปลงข้อมูล MQTT ล้มเหลว", e);
-                }
-            } else if (topic === TOPIC_SCHEDULE) {
-                try {
-                    const data = JSON.parse(message.toString());
-                    let payloadSchedules = [];
-                    // รองรับข้อมูลที่ตอบกลับมาเป็น { schedules: [...] } หรือ [...] โดยตรง
-                    if (data && data.schedules && Array.isArray(data.schedules)) {
-                        payloadSchedules = data.schedules;
-                    } else if (Array.isArray(data)) {
-                        payloadSchedules = data;
-                    }
-                    
-                    const scheduleEvent = new CustomEvent('scheduleUpdatedUI', { detail: payloadSchedules });
-                    window.dispatchEvent(scheduleEvent);
-                } catch (e) {
-                    console.error("❌ แปลงข้อมูล Schedule MQTT ล้มเหลว", e);
-                }
-            } else if (topic === TOPIC_HISTORY) {
-                try {
-                    const data = JSON.parse(message.toString());
-                    let payloadHistory = [];
-                    if (Array.isArray(data)) {
-                        payloadHistory = data;
-                        
-                        // SYNC TO VERCEL POSTGRES (Frontend Sync)
-                        if (!window.isLocalMode && payloadHistory.length > 0) {
-                            (async () => {
-                                try {
-                                    const res = await fetch("/api/history", {
-                                        headers: { "x-device-id": DEVICE_ID, "x-device-code": "1234" }
-                                    });
-                                    if (res.ok) {
-                                        const dbHistory = await res.json();
-                                        let synced = false;
-                                        for(let item of payloadHistory) {
-                                            let exists = dbHistory.some(dbItem => {
-                                                const t1 = new Date(dbItem.timestamp).getTime();
-                                                const t2 = new Date(item.timestamp).getTime();
-                                                return Math.abs(t1 - t2) < 60000;
-                                            });
-                                            if(!exists) {
-                                                console.log("Syncing missing history to DB:", item);
-                                                await fetch('/api/history', {
-                                                    method: 'POST',
                                                     headers: { 'Content-Type': 'application/json', 'x-device-id': DEVICE_ID },
                                                     body: JSON.stringify({ amount: item.amount, mode: item.mode, timestamp: item.timestamp })
                                                 });
