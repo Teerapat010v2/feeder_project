@@ -189,8 +189,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 motorEl.textContent = "เครื่องปิด";
                 motorEl.className = "status-value-text gray";
             } else {
-                motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
+                const motorSpeedText = data.motor_speed !== undefined ? `พร้อม (${data.motor_speed}%)` : "พร้อม";
+                motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : motorSpeedText);
                 motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
+            }
+        }
+        
+        // Sync motor speed slider with device state to prevent reset on refresh
+        if (onlineStatus && data.motor_speed !== undefined) {
+            if (motorSpeedSlider && document.activeElement !== motorSpeedSlider) {
+                motorSpeedSlider.value = data.motor_speed;
+                if (motorSpeedValueText) motorSpeedValueText.textContent = data.motor_speed;
             }
         }
         if (scaleEl) {
