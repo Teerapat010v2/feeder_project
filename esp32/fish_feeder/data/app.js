@@ -473,16 +473,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     const cmdPayload = JSON.stringify({ action: "FEED", amount: amount });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
 
-                    // บันทึกประวัติลงฐานข้อมูล Vercel Postgres
-                    try {
-                        await fetch('/api/history', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ amount: amount, mode: 'manual' })
-                        });
-                    } catch (e) {
-                        console.error('Failed to save history:', e);
-                    }
+                    // (การบันทึกประวัติจะถูกจัดการโดย Frontend Sync อัตโนมัติเมื่อ ESP32 ทำงานเสร็จและส่ง MQTT กลับมา)
 
                     alert(`✅ ส่งคำสั่งให้อาหาร ${amount} กรัมผ่านระบบออนไลน์แล้ว`);
                 } else {
