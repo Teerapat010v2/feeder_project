@@ -768,7 +768,11 @@ void stopFeeding() {
   
   float dispensed = weightBeforeFeed - weightAfterFeed;
   
-  Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม\n", weightBeforeFeed, weightAfterFeed, dispensed);
+  // Use targetFeedAmount for history to reflect the requested amount, 
+  // or use dispensed if it's somehow larger. Usually, users want to see what was ordered.
+  int recordedAmount = (dispensed > 0 && abs(dispensed - targetFeedAmount) < 5) ? (int)dispensed : targetFeedAmount;
+  
+  Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม (บันทึกประวัติ: %d กรัม)\n", weightBeforeFeed, weightAfterFeed, dispensed, recordedAmount);
 
   char timeStr[32] = "Unknown Time";
   if (Rtc.GetIsRunning()) {
@@ -777,11 +781,11 @@ void stopFeeding() {
                now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second());
   }
   if (historyCount < MAX_HISTORY) {
-      feedHistory[historyCount] = { String(timeStr), (int)dispensed, currentFeedMode };
+      feedHistory[historyCount] = { String(timeStr), recordedAmount, currentFeedMode };
       historyCount++;
   } else {
       for (int i = 1; i < MAX_HISTORY; i++) feedHistory[i-1] = feedHistory[i];
-      feedHistory[MAX_HISTORY-1] = { String(timeStr), (int)dispensed, currentFeedMode };
+      feedHistory[MAX_HISTORY-1] = { String(timeStr), recordedAmount, currentFeedMode };
   }
   saveHistoryToSPIFFS();
   Serial.println("📝 บันทึกประวัติการให้อาหารลง Memory สำเร็จ");
