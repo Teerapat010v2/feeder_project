@@ -379,7 +379,7 @@ void setup() {
       Rtc.SetIsWriteProtected(false);
   }
 
-  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 1000, 8); ledcAttachPin(MOTOR_ENA, 0);
+  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 5000, 8); ledcAttachPin(MOTOR_ENA, 0);
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
