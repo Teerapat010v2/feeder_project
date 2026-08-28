@@ -1090,6 +1090,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!historyTableBody) return; // ไม่ใช่หน้า history.html
 
     const clearHistoryBtn = document.getElementById("clearHistoryBtn");
+    const filterBtn = document.getElementById("filterBtn");
+    const resetFilterBtn = document.getElementById("resetFilterBtn");
+    const startDateInput = document.getElementById("startDateInput");
+    const endDateInput = document.getElementById("endDateInput");
+
+    let globalHistoryData = [];
 
     window.loadHistory = async function() {
         try {
@@ -1098,6 +1104,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
             if (response.ok) {
                 const history = await response.json();
+                globalHistoryData = history;
                 renderHistory(history);
             } else {
                 historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">โหลดข้อมูลล้มเหลว</td></tr>`;
@@ -1143,7 +1150,40 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-        if (clearHistoryBtn) {
+    if (filterBtn) {
+        filterBtn.addEventListener("click", () => {
+            const start = startDateInput.value;
+            const end = endDateInput.value;
+            if (!start || !end) {
+                alert("กรุณาระบุวันที่ให้ครบทั้งสองช่องก่อนค้นหา");
+                return;
+            }
+            const startDate = new Date(start);
+            startDate.setHours(0,0,0,0);
+            const endDate = new Date(end);
+            endDate.setHours(23,59,59,999);
+            
+            const filtered = globalHistoryData.filter(item => {
+                let ts = item.timestamp;
+                if (typeof ts === 'string' && !ts.includes('Z') && !ts.includes('+')) {
+                    ts = ts.replace(' ', 'T') + 'Z';
+                }
+                const d = new Date(ts);
+                return d >= startDate && d <= endDate;
+            });
+            renderHistory(filtered);
+        });
+    }
+
+    if (resetFilterBtn) {
+        resetFilterBtn.addEventListener("click", () => {
+            if (startDateInput) startDateInput.value = "";
+            if (endDateInput) endDateInput.value = "";
+            renderHistory(globalHistoryData);
+        });
+    }
+
+    if (clearHistoryBtn) {
         clearHistoryBtn.addEventListener("click", async () => {
             if (!confirm("คุณต้องการล้างประวัติทั้งหมดใช่หรือไม่?")) return;
 
