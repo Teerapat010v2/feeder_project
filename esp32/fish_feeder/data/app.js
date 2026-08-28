@@ -1312,21 +1312,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const saveCalibrationBtn = document.getElementById("saveCalibrationBtn");
     if (saveCalibrationBtn) {
-        saveCalibrationBtn.addEventListener("click", async () => {
+        saveCalibrationBtn.addEventListener("click", () => {
             const val = document.getElementById("feedAmountInput")?.value;
             if (val && val > 0) {
-                try {
-                    await fetch("/api/settings/feed_amount", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ feed_amount: val })
-                    });
-                    alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย");
-                } catch (err) {
-                    alert("❌ บันทึกไม่สำเร็จ");
-                }
-            } else {
-                alert("✅ บันทึกการตั้งค่าลงระบบเรียบร้อย"); // Fallback
+                localStorage.setItem("defaultFeedAmount", val);
+                alert("✅ บันทึกปริมาณอาหารเริ่มต้นเรียบร้อยแล้ว");
             }
         });
     }
@@ -1335,28 +1325,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const feedAmountInput = document.getElementById("feedAmountInput");
     const indexFeedAmount = document.getElementById("feedAmount");
 
-    let feedAmountDebounceTimer = null;
-    
-    async function saveFeedAmount(val) {
+    function saveFeedAmount(val) {
         if (!val || val <= 0) return;
         
         // Sync the two UI inputs immediately
         if (indexFeedAmount && indexFeedAmount.value !== val) indexFeedAmount.value = val;
         if (feedAmountInput && feedAmountInput.value !== val) feedAmountInput.value = val;
         
-        // Clear previous timer and setup new debounce to avoid spamming the database
-        if (feedAmountDebounceTimer) clearTimeout(feedAmountDebounceTimer);
-        feedAmountDebounceTimer = setTimeout(async () => {
-            try {
-                await fetch("/api/settings/feed_amount", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ feed_amount: val })
-                });
-            } catch (err) {
-                console.error("Failed to save feed amount", err);
-            }
-        }, 1000);
+        // Save to local storage for persistence across reloads
+        localStorage.setItem("defaultFeedAmount", val);
     }
 
     if (indexFeedAmount) {
@@ -1366,14 +1343,12 @@ document.addEventListener("DOMContentLoaded", () => {
         feedAmountInput.addEventListener("input", (e) => saveFeedAmount(e.target.value));
     }
     
-    // Load feed_amount from status on boot
-    fetch("/api/status").then(res => res.json()).then(data => {
-        if (data && data.feedAmount) {
-            const val = data.feedAmount.toString();
-            if (indexFeedAmount) indexFeedAmount.value = val;
-            if (feedAmountInput) feedAmountInput.value = val;
-        }
-    }).catch(err => console.log("Failed to fetch initial feed_amount"));
+    // Load feed_amount from local storage on boot
+    const savedFeedAmount = localStorage.getItem("defaultFeedAmount");
+    if (savedFeedAmount) {
+        if (indexFeedAmount) indexFeedAmount.value = savedFeedAmount;
+        if (feedAmountInput) feedAmountInput.value = savedFeedAmount;
+    }
 });
 
 // --- Custom Toast Alert System ---
