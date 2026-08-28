@@ -59,6 +59,7 @@ String deviceId = "feeder_";
 float weightBeforeFeed = 0.0;
 bool forceManualMode = false;
 String currentFeedMode = "manual";
+int targetFeedAmount = 0;
 
 // --- Hardware Button State ---
 unsigned long wifiResetPressTime = 0;
@@ -647,7 +648,17 @@ void loop() {
 
   if (isFeeding) {
     setRGB(false, true, false); // Green while feeding
-    if (millis() - feedStartTime >= feedDuration) {
+    
+    bool shouldStop = false;
+    if (scale.is_ready()) {
+      float currentW = scale.get_units(1); // Read without blocking loop
+      if (currentW < 0) currentW = 0.0;
+      if ((weightBeforeFeed - currentW) >= targetFeedAmount) {
+        shouldStop = true;
+      }
+    }
+    
+    if (shouldStop || (millis() - feedStartTime >= feedDuration)) {
       stopFeeding();              
       updateStatusLED(); // Restore status LED
     }
@@ -677,8 +688,10 @@ void loop() {
 void triggerFeeding(int amountGrams, String mode) {
   if (isFeeding) return; 
 
-  unsigned long duration = (unsigned long)((amountGrams / 10.0) * 2000.0);
-  if (duration < 1000) duration = 1000;
+  targetFeedAmount = amountGrams;
+  unsigned long duration = (unsigned long)(amountGrams * 3000UL); // Max 3 seconds per gram safety timeout
+  if (duration < 5000) duration = 5000;
+  if (duration > 60000) duration = 60000;
   
   feedDuration = duration;
   feedStartTime = millis();
