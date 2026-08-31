@@ -21,9 +21,7 @@
 // =================================================================
 #define HX711_DT   16   
 #define HX711_SCK  17   
-#define MOTOR_ENA  18
-#define MOTOR_IN1  5
-#define MOTOR_IN2  13   
+#define RELAY_PIN  18 // ใช้ Relay ควบคุมมอเตอร์แทน L298N
 
 #define LED_R      19   
 #define LED_G      23   
@@ -380,13 +378,14 @@ void setup() {
       Rtc.SetIsWriteProtected(false);
   }
 
-  // ปรับความถี่จาก 5000 Hz เป็น 20000 Hz (20kHz) เพื่อทดสอบมอเตอร์
-  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 20000, 8); ledcAttachPin(MOTOR_ENA, 0);
+  // ตั้งค่าพินสำหรับ Relay
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW); // ปิด Relay ไว้ตอนเริ่มต้น
+  
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
 
-  digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, 0);
   setRGB(false, false, true); 
 
   if (!SPIFFS.begin(true)) {
@@ -701,15 +700,8 @@ void triggerFeeding(int amountGrams, String mode) {
   weightBeforeFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
   if (weightBeforeFeed < 0) weightBeforeFeed = 0.0;
 
-    digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW); 
-  int pwmValue = map(currentMotorSpeed, 0, 100, 0, 255);
-  ledcWrite(0, pwmValue);
-  Serial.print("▶️ มอเตอร์เริ่มหมุนด้วยความเร็ว: ");
-  Serial.print(currentMotorSpeed);
-  Serial.print("% (PWM: ");
-  Serial.print(pwmValue);
-  Serial.println(")");
-
+  digitalWrite(RELAY_PIN, HIGH); 
+  Serial.println("▶️ รีเลย์ทำงาน (เปิดมอเตอร์)");
   
   Serial.print("🐟 กำลังให้อาหาร: ");
   Serial.print(amountGrams);
@@ -758,8 +750,8 @@ void sendHistoryToVercel(int amountGrams, String mode) {
 
 void stopFeeding() {
   isFeeding = false;
-  digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW); ledcWrite(0, 0); 
-  Serial.println("🛑 หยุดการทำงานมอเตอร์แล้ว");
+  digitalWrite(RELAY_PIN, LOW); 
+  Serial.println("🛑 หยุดการทำงานมอเตอร์ (ปิดรีเลย์) แล้ว");
   
   // รอให้ตาชั่งนิ่งสักพัก
   delay(1000); 
