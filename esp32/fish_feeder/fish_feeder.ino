@@ -378,9 +378,9 @@ void setup() {
       Rtc.SetIsWriteProtected(false);
   }
 
-  // ตั้งค่าพินสำหรับ Relay
+  // ตั้งค่าพินสำหรับ Relay (บอร์ดรีเลย์ส่วนใหญ่เป็นแบบ Active-Low)
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW); // ปิด Relay ไว้ตอนเริ่มต้น
+  digitalWrite(RELAY_PIN, HIGH); // HIGH = ปิด Relay ไว้ตอนเริ่มต้น
   
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
@@ -700,7 +700,7 @@ void triggerFeeding(int amountGrams, String mode) {
   weightBeforeFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
   if (weightBeforeFeed < 0) weightBeforeFeed = 0.0;
 
-  digitalWrite(RELAY_PIN, HIGH); 
+  digitalWrite(RELAY_PIN, LOW); // LOW = เปิดรีเลย์
   Serial.println("▶️ รีเลย์ทำงาน (เปิดมอเตอร์)");
   
   Serial.print("🐟 กำลังให้อาหาร: ");
@@ -750,7 +750,7 @@ void sendHistoryToVercel(int amountGrams, String mode) {
 
 void stopFeeding() {
   isFeeding = false;
-  digitalWrite(RELAY_PIN, LOW); 
+  digitalWrite(RELAY_PIN, HIGH); // HIGH = ปิดรีเลย์
   Serial.println("🛑 หยุดการทำงานมอเตอร์ (ปิดรีเลย์) แล้ว");
   
   // รอให้ตาชั่งนิ่งสักพัก
