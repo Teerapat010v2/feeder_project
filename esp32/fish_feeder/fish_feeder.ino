@@ -380,7 +380,8 @@ void setup() {
       Rtc.SetIsWriteProtected(false);
   }
 
-  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 5000, 8); ledcAttachPin(MOTOR_ENA, 0);
+  // ปรับความถี่จาก 5000 Hz เป็น 20000 Hz (20kHz) เพื่อทดสอบมอเตอร์
+  pinMode(MOTOR_ENA, OUTPUT); pinMode(MOTOR_IN1, OUTPUT); pinMode(MOTOR_IN2, OUTPUT); ledcSetup(0, 20000, 8); ledcAttachPin(MOTOR_ENA, 0);
   pinMode(LED_R, OUTPUT);
   pinMode(LED_G, OUTPUT);
   pinMode(LED_B, OUTPUT);
