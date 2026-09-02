@@ -87,14 +87,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (foodStatusBadge) {
-            if (daysLeftVal > 7) {
+            if (lastWeight <= 5) {
+                foodStatusBadge.textContent = "🔴 หมด";
+                foodStatusBadge.className = "status-badge red";
+            } else if (daysLeftVal > 7) {
                 foodStatusBadge.textContent = "🟢 ปกติ";
                 foodStatusBadge.className = "status-badge green";
             } else if (daysLeftVal >= 3) {
-                foodStatusBadge.textContent = "🟡 เหลือน้อย";
+                foodStatusBadge.textContent = "🟡 ใกล้หมด";
                 foodStatusBadge.className = "status-badge warning";
             } else {
-                foodStatusBadge.textContent = "🔴 เติมอาหาร";
+                foodStatusBadge.textContent = "🔴 ใกล้หมด";
                 foodStatusBadge.className = "status-badge red";
             }
         }
@@ -102,9 +105,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Fetch schedules to calculate real daily usage
     fetch("/api/schedule").then(res => res.json()).then(data => {
-        if (Array.isArray(data)) {
+        const arr = data.schedules ? data.schedules : (Array.isArray(data) ? data : []);
+        if (Array.isArray(arr)) {
             let usage = 0;
-            for (let s of data) {
+            for (let s of arr) {
                 if (s.enable) usage += Number(s.amount);
             }
             if (usage > 0) {
