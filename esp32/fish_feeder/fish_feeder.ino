@@ -702,7 +702,12 @@ void triggerFeeding(int amountGrams, String mode) {
   feedStartTime = millis();
   isFeeding = true;
   currentFeedMode = mode;
-  weightBeforeFeed = scale.is_ready() ? scale.get_units(5) : 0.0;
+  if (scale.wait_ready_timeout(500)) {
+    weightBeforeFeed = scale.get_units(5);
+  } else {
+    weightBeforeFeed = 0.0;
+    Serial.println("⚠️ คำเตือน: อ่านน้ำหนักก่อนให้อาหารไม่สำเร็จ จะใช้ระบบจับเวลาแทน");
+  }
   if (weightBeforeFeed < 0) weightBeforeFeed = 0.0;
 
   digitalWrite(RELAY_PIN, LOW); // LOW = เปิดรีเลย์
