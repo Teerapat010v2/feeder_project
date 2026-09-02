@@ -482,30 +482,55 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // --- 3.5. สั่งให้อาหารแบบปล่อยอิสระ ---
+    // --- 3.5. สั่งให้อาหารแบบปล่อยอิสระ (กดค้าง) ---
     if (feedFreeBtn) {
-        feedFreeBtn.addEventListener("click", async () => {
-            const originalText = feedFreeBtn.innerHTML;
-            feedFreeBtn.disabled = true;
-            feedFreeBtn.textContent = "⏳ สั่งงาน...";
+        let isHolding = false;
+        
+        const startFeed = async (e) => {
+            if (e.cancelable) e.preventDefault(); // Prevent text selection/zoom on mobile
+            if (isHolding || feedFreeBtn.disabled || (modeToggle && !modeToggle.checked)) return;
+            isHolding = true;
+            feedFreeBtn.style.transform = "scale(0.95)";
+            feedFreeBtn.style.opacity = "0.8";
+            feedFreeBtn.textContent = "⏳ กำลังปล่อย...";
 
             try {
                 if (!window.isLocalMode && mqttClient && mqttClient.connected) {
                     const cmdPayload = JSON.stringify({ action: "FEED", amount: 0 });
                     mqttClient.publish(TOPIC_CMD, cmdPayload);
-                    alert(`✅ สั่งให้อาหารแบบปล่อยอิสระผ่านระบบออนไลน์ (กดหยุดฉุกเฉินเมื่อพอใจ)`);
                 } else {
-                    const response = await fetch(`/local-feed?amount=0`);
-                    const result = await response.json();
-                    alert(response.ok ? `✅ สั่งให้อาหารแบบปล่อยอิสระ (กดหยุดฉุกเฉินเมื่อพอใจ)` : "❌ ผิดพลาด");
+                    fetch(`/local-feed?amount=0`);
                 }
-            } catch (err) {
-                alert("❌ ไม่สามารถสั่งงานได้");
-            } finally {
-                feedFreeBtn.disabled = !(modeToggle && modeToggle.checked);
-                feedFreeBtn.innerHTML = originalText;
-            }
-        });
+            } catch (err) {}
+        };
+
+        const stopFeed = async (e) => {
+            if (e.cancelable) e.preventDefault();
+            if (!isHolding) return;
+            isHolding = false;
+            feedFreeBtn.style.transform = "scale(1)";
+            feedFreeBtn.style.opacity = "1";
+            feedFreeBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -3px; margin-right: 4px;"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>กดค้างเพื่อปล่อย`;
+
+            try {
+                if (!window.isLocalMode && mqttClient && mqttClient.connected) {
+                    const cmdPayload = JSON.stringify({ action: "EMERGENCY_STOP" });
+                    mqttClient.publish(TOPIC_CMD, cmdPayload);
+                } else {
+                    fetch("/local-stop");
+                }
+            } catch (err) {}
+        };
+
+        // Desktop events
+        feedFreeBtn.addEventListener("mousedown", startFeed);
+        feedFreeBtn.addEventListener("mouseup", stopFeed);
+        feedFreeBtn.addEventListener("mouseleave", stopFeed); // In case cursor leaves the button while holding
+        
+        // Mobile touch events
+        feedFreeBtn.addEventListener("touchstart", startFeed, {passive: false});
+        feedFreeBtn.addEventListener("touchend", stopFeed, {passive: false});
+        feedFreeBtn.addEventListener("touchcancel", stopFeed, {passive: false});
     }
 
     // --- 4. ฟังก์ชันปุ่มหยุดฉุกเฉิน ---
