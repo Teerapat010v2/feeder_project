@@ -282,14 +282,14 @@ void setRGB(bool r, bool g, bool b) {
 }
 
 void updateStatusLED() {
-  if (mqttClient.connected()) {
-    // โหมดออนไลน์ = สีเขียว
+  if (WiFi.status() == WL_CONNECTED) {
+    // เชื่อมต่อ Wi-Fi สำเร็จ = สีเขียว
     setRGB(false, true, false);
-  } else if (WiFi.status() == WL_CONNECTED || WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
-    // โหมด Local (WiFi/AP) = สีเหลือง (แดง+เขียว)
-    setRGB(true, true, false);
+  } else if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+    // โหมด AP (ยังไม่ได้ต่อเน็ต) = สีน้ำเงิน
+    setRGB(false, false, true);
   } else {
-    // มีไฟเข้าแต่ยังไม่เชื่อมต่ออะไรเลย = สีแดง
+    // ยังไม่เชื่อมต่ออะไรเลย = สีแดง
     setRGB(true, false, false);
   }
 }
@@ -647,7 +647,7 @@ void loop() {
   }
 
   if (isFeeding) {
-    setRGB(false, true, false); // Green while feeding
+    setRGB(false, false, true); // Blue while feeding
     
     bool shouldStop = false;
     // อ่านน้ำหนักและหยุดเมื่อน้ำหนักลดลงครบตามที่สั่ง

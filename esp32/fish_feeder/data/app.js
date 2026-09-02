@@ -34,9 +34,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const stopBtn = document.getElementById("stopBtn");
     const feedAmount = document.getElementById("feedAmount");
     const modeToggle = document.getElementById("modeToggle");
-    const motorSpeedSlider = document.getElementById("motorSpeedSlider");
-    const motorSpeedValueText = document.getElementById("motorSpeedValueText");
-    const saveMotorSpeedBtn = document.getElementById("saveMotorSpeedBtn");
 
     const MAX_CAPACITY_GRAMS = 5000;
     let DAILY_USAGE_GRAMS = 20; // Default fallback
@@ -190,17 +187,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 motorEl.textContent = "เครื่องปิด";
                 motorEl.className = "status-value-text gray";
             } else {
-                const motorSpeedText = data.motor_speed !== undefined ? `${data.motor_speed}%` : "100%";
-                motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : motorSpeedText);
+                motorEl.textContent = motor === "FEEDING" ? "ทำงาน" : (motor === "ERROR" ? "ขัดข้อง" : "พร้อม");
                 motorEl.className = motor === "FEEDING" ? "status-value-text blue" : (motor === "ERROR" ? "status-value-text red" : "status-value-text green");
-            }
-        }
-        
-        // Sync motor speed slider with device state to prevent reset on refresh
-        if (onlineStatus && data.motor_speed !== undefined) {
-            if (motorSpeedSlider && document.activeElement !== motorSpeedSlider) {
-                motorSpeedSlider.value = data.motor_speed;
-                if (motorSpeedValueText) motorSpeedValueText.textContent = data.motor_speed;
             }
         }
         if (scaleEl) {
