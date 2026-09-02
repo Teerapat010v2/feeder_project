@@ -649,16 +649,8 @@ void loop() {
   if (isFeeding) {
     setRGB(false, true, false); // Green while feeding
     
-    bool shouldStop = false;
-    if (scale.is_ready()) {
-      float currentW = scale.get_units(1); // Read without blocking loop
-      if (currentW < 0) currentW = 0.0;
-      if ((weightBeforeFeed - currentW) >= targetFeedAmount) {
-        shouldStop = true;
-      }
-    }
-    
-    if (shouldStop || (millis() - feedStartTime >= feedDuration)) {
+    // หยุดหมุนตามเวลาที่คำนวณไว้
+    if (millis() - feedStartTime >= feedDuration) {
       stopFeeding();              
       updateStatusLED(); // Restore status LED
     }
@@ -689,9 +681,9 @@ void triggerFeeding(int amountGrams, String mode) {
   if (isFeeding) return; 
 
   targetFeedAmount = amountGrams;
-  unsigned long duration = (unsigned long)(amountGrams * 3000UL); // Max 3 seconds per gram safety timeout
-  if (duration < 5000) duration = 5000;
-  if (duration > 60000) duration = 60000;
+  // คำนวณเวลาการหมุนมอเตอร์: 10 กรัม = 2000 ms (2 วินาที)
+  unsigned long duration = (unsigned long)((amountGrams / 10.0) * 2000.0);
+  if (duration < 1000) duration = 1000;
   
   feedDuration = duration;
   feedStartTime = millis();
@@ -761,9 +753,9 @@ void stopFeeding() {
   
   float dispensed = weightBeforeFeed - weightAfterFeed;
   
-  // Use targetFeedAmount for history to reflect the requested amount, 
-  // or use dispensed if it's somehow larger. Usually, users want to see what was ordered.
-  int recordedAmount = (dispensed > 0 && abs(dispensed - targetFeedAmount) < 5) ? (int)dispensed : targetFeedAmount;
+  // บันทึกประวัติตามน้ำหนักที่ลดจริงๆ ตามที่ผู้ใช้ต้องการ
+  int recordedAmount = (int)dispensed;
+  if (recordedAmount < 0) recordedAmount = 0;
   
   Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม (บันทึกประวัติ: %d กรัม)\n", weightBeforeFeed, weightAfterFeed, dispensed, recordedAmount);
 
