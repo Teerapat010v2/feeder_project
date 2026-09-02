@@ -771,8 +771,8 @@ void stopFeeding() {
   
   float dispensed = weightBeforeFeed - weightAfterFeed;
   
-  // บันทึกประวัติตามน้ำหนักที่ลดจริงๆ ตามที่ผู้ใช้ต้องการ
-  int recordedAmount = (int)dispensed;
+  // บันทึกประวัติตามน้ำหนักที่ลดจริงๆ พร้อมปัดเศษทศนิยม (0.5 ปัดขึ้น)
+  int recordedAmount = (int)round(dispensed);
   if (recordedAmount < 0) recordedAmount = 0;
   
   Serial.printf("📊 น้ำหนักก่อน: %.1f กรัม | หลัง: %.1f กรัม | จ่ายไป: %.1f กรัม (บันทึกประวัติ: %d กรัม)\n", weightBeforeFeed, weightAfterFeed, dispensed, recordedAmount);
