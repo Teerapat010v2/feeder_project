@@ -650,11 +650,11 @@ void loop() {
     setRGB(false, false, true); // Blue while feeding
     
     bool shouldStop = false;
-    // อ่านน้ำหนักและหยุดเมื่อน้ำหนักลดลงครบตามที่สั่ง
+    // อ่านน้ำหนักและหยุดเมื่อน้ำหนักลดลงครบตามที่สั่ง (ยกเว้นสั่ง 0 กรัม คือปล่อยอิสระ)
     if (scale.is_ready()) {
       float currentW = scale.get_units(1); // Read fast without blocking
       if (currentW < 0) currentW = 0.0;
-      if ((weightBeforeFeed - currentW) >= targetFeedAmount) {
+      if (targetFeedAmount > 0 && (weightBeforeFeed - currentW) >= targetFeedAmount) {
         shouldStop = true;
       }
     }
@@ -692,11 +692,17 @@ void triggerFeeding(int amountGrams, String mode) {
 
   targetFeedAmount = amountGrams;
   
-  // ตั้งค่า Safety Timeout (ให้เวลาหมุนสูงสุด 1 วินาที ต่อ 10 กรัม แต่ไม่เกิน 15 วินาที)
-  // เพื่อป้องกันมอเตอร์หมุนค้างนานเกินไปเวลาอาหารหมดถังหรือติดขัด
-  unsigned long duration = (unsigned long)((amountGrams / 10.0) * 1000.0);
-  if (duration < 5000) duration = 5000; // ขั้นต่ำ 5 วินาที
-  if (duration > 15000) duration = 15000; // สูงสุด 15 วินาที
+  // ตั้งค่า Safety Timeout
+  unsigned long duration = 0;
+  if (amountGrams == 0) {
+    // โหมดปล่อยอิสระ (ไม่กำหนดน้ำหนัก) ให้หมุนได้สูงสุด 60 วินาที
+    duration = 60000;
+  } else {
+    // มีการกำหนดน้ำหนัก ให้คำนวณเวลาสูงสุดที่ 1 วินาที ต่อ 10 กรัม แต่ไม่เกิน 15 วินาที
+    duration = (unsigned long)((amountGrams / 10.0) * 1000.0);
+    if (duration < 5000) duration = 5000; // ขั้นต่ำ 5 วินาที
+    if (duration > 15000) duration = 15000; // สูงสุด 15 วินาที
+  }
   
   feedDuration = duration;
   feedStartTime = millis();
@@ -855,7 +861,7 @@ void handleLocalFeed() {
   } else if (server.hasArg("grams")) {
     amount = server.arg("grams").toInt();
   }
-  if (amount <= 0) amount = 10;
+  if (amount < 0) amount = 10; // อนุญาตให้ส่ง 0 ได้ (ปล่อยอิสระ)
   
   triggerFeeding(amount, "manual");
   

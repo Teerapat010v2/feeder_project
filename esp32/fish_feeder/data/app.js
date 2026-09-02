@@ -31,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const connStatus = document.getElementById("connectionStatus");
     
     const feedBtn = document.getElementById("feedBtn");
+    const feedFreeBtn = document.getElementById("feedFreeBtn");
     const stopBtn = document.getElementById("stopBtn");
     const feedAmount = document.getElementById("feedAmount");
     const modeToggle = document.getElementById("modeToggle");
@@ -233,11 +234,13 @@ document.addEventListener("DOMContentLoaded", () => {
             labelManual?.classList.add("active");
             labelAuto?.classList.remove("active");
             if (feedBtn) feedBtn.disabled = false;
+            if (feedFreeBtn) feedFreeBtn.disabled = false;
             if (feedAmount) feedAmount.disabled = false;
         } else {
             labelAuto?.classList.add("active");
             labelManual?.classList.remove("active");
             if (feedBtn) feedBtn.disabled = true;
+            if (feedFreeBtn) feedFreeBtn.disabled = true;
             if (feedAmount) feedAmount.disabled = true;
         }
     }
@@ -475,6 +478,32 @@ document.addEventListener("DOMContentLoaded", () => {
             } finally {
                 feedBtn.disabled = !(modeToggle && modeToggle.checked);
                 feedBtn.textContent = originalText;
+            }
+        });
+    }
+
+    // --- 3.5. สั่งให้อาหารแบบปล่อยอิสระ ---
+    if (feedFreeBtn) {
+        feedFreeBtn.addEventListener("click", async () => {
+            const originalText = feedFreeBtn.innerHTML;
+            feedFreeBtn.disabled = true;
+            feedFreeBtn.textContent = "⏳ สั่งงาน...";
+
+            try {
+                if (!window.isLocalMode && mqttClient && mqttClient.connected) {
+                    const cmdPayload = JSON.stringify({ action: "FEED", amount: 0 });
+                    mqttClient.publish(TOPIC_CMD, cmdPayload);
+                    alert(`✅ สั่งให้อาหารแบบปล่อยอิสระผ่านระบบออนไลน์ (กดหยุดฉุกเฉินเมื่อพอใจ)`);
+                } else {
+                    const response = await fetch(`/local-feed?amount=0`);
+                    const result = await response.json();
+                    alert(response.ok ? `✅ สั่งให้อาหารแบบปล่อยอิสระ (กดหยุดฉุกเฉินเมื่อพอใจ)` : "❌ ผิดพลาด");
+                }
+            } catch (err) {
+                alert("❌ ไม่สามารถสั่งงานได้");
+            } finally {
+                feedFreeBtn.disabled = !(modeToggle && modeToggle.checked);
+                feedFreeBtn.innerHTML = originalText;
             }
         });
     }
