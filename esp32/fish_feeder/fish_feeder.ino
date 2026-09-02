@@ -649,8 +649,18 @@ void loop() {
   if (isFeeding) {
     setRGB(false, true, false); // Green while feeding
     
-    // หยุดหมุนตามเวลาที่คำนวณไว้
-    if (millis() - feedStartTime >= feedDuration) {
+    bool shouldStop = false;
+    // อ่านน้ำหนักและหยุดเมื่อน้ำหนักลดลงครบตามที่สั่ง
+    if (scale.is_ready()) {
+      float currentW = scale.get_units(1); // Read fast without blocking
+      if (currentW < 0) currentW = 0.0;
+      if ((weightBeforeFeed - currentW) >= targetFeedAmount) {
+        shouldStop = true;
+      }
+    }
+    
+    // หยุดเมื่อน้ำหนักครบ หรือ หมดเวลา Safety Timeout
+    if (shouldStop || (millis() - feedStartTime >= feedDuration)) {
       stopFeeding();              
       updateStatusLED(); // Restore status LED
     }
@@ -681,9 +691,12 @@ void triggerFeeding(int amountGrams, String mode) {
   if (isFeeding) return; 
 
   targetFeedAmount = amountGrams;
-  // คำนวณเวลาการหมุนมอเตอร์: 10 กรัม = 2000 ms (2 วินาที)
-  unsigned long duration = (unsigned long)((amountGrams / 10.0) * 2000.0);
-  if (duration < 1000) duration = 1000;
+  
+  // ตั้งค่า Safety Timeout (ให้เวลาหมุนสูงสุด 1 วินาที ต่อ 10 กรัม แต่ไม่เกิน 15 วินาที)
+  // เพื่อป้องกันมอเตอร์หมุนค้างนานเกินไปเวลาอาหารหมดถังหรือติดขัด
+  unsigned long duration = (unsigned long)((amountGrams / 10.0) * 1000.0);
+  if (duration < 5000) duration = 5000; // ขั้นต่ำ 5 วินาที
+  if (duration > 15000) duration = 15000; // สูงสุด 15 วินาที
   
   feedDuration = duration;
   feedStartTime = millis();
